@@ -1,0 +1,687 @@
+
+# coding: utf-8
+
+# '''
+# This notebook is used for AGMD programming.
+# '''
+
+# In[1]:
+
+import numpy as np
+# from matplotlib import pyplot
+
+
+# In[2]:
+
+def InitCase(Case):
+    '''
+    Initial the working environment of the model.
+    '''
+    if Case == 'fig8':
+        # for co-current regime mh = 1.5 LPM
+        ## Fig. 8, runs on 1-5
+        mh0 = 1.5*60 #(kg/hr) 1.-10.LPM Mass of hot water inlet.
+        mc = 1.5*60 # (kg/hr) 1.-10.LPM Mass flux of cold side saline water.
+        Thb0 = 80. # (C) hotside inlet temperature at x = 0
+        TcbL = 20. # (C) coldside inlet temperature at x = L
+        K_hotwater = 65.5e-2*3600/1000 ## kJ/(m K hr) = kW/(m K)/3600 may or not use functions.
+        K_coldwater = 62.1e-2*3.6 ## kJ/(m K hr) = kW/(m K)/3600 may use functions.
+        Sh = 42. #(g/kg) Salinity of hot water.
+        Sc = 0. #(g/kg) 0. or sea water. Salinity of cold water.
+        
+        # For modeling
+        ## 10cm*5cm membrane? 15m*1m? But teacher said make width = 1.0 m
+        length_x = 10.0e-2 #(m) the length of the model
+        W = 5.0e-2 # (m) width(horizontal) of the model, vertical to the paper.
+        height = 2.0e-3 #(m) height of water channel for both hotside and coldside.
+        delta_a = 9e-3 # (m) Width of the air gap.
+        
+        # For membrane
+        d = 0.2e-6 #(m) 0.2um or 0.45um, pore size of membrane(PTFE)
+        tau = 1.5 # 1.5 or 2 membrane pores tortuosiity
+    elif Case == "fig11":
+        raise ValueError("Not for other conditions now!")
+    
+    return mh0,mc,Thb0,TcbL,K_hotwater,K_coldwater,Sh,Sc,length_x,W,height,delta_a,d,tau
+
+
+# In[3]:
+
+# Global Parameters
+'''densities of water and gas do not change.'''
+'''Please input a string indicates fig.NO.'''
+mh0,mc,Thb0,TcbL,K_hotwater,K_coldwater,Sh,Sc,length_x,W,height,delta_a,d,tau = InitCase("fig8")
+# Mesh setup
+# length_x = 15. #(m) the length of the model
+Nx = 300 # number of total grids
+x = np.linspace(0,length_x,Nx)
+dx = length_x/(Nx-1)
+
+# Modeling situation
+# mh0 = 1.5*60 #(kg/hr) Mass of hot water inlet.
+# W = # (m) width(horizontal) of the model, vertical to the paper.
+# delta_a = 9e-3 # (m) Width of the air gap.
+delta_c = 0.25e-3 # (m) Thickness of coolant wall--stainless steel sheet.
+
+# Universal constant
+Mv = 18 # water 18kg/kmole
+R = 8.314 #(J/(kmol K)) kmol, J unsure...
+g = 9.80 # (m/s2) gravity
+Ptotal = 101325 # Total pressure in the model, p = 101325Pa.
+
+
+## for the membrane
+# d = 0.2e-6 #(m) 0.2um or 0.45um, pore size of membrane(PTFE)
+epsilon = 0.8 # 80% membrane porosity
+delta_m = 100e-6# (m) Attention! b (in the article) == delta_m. Thickness of membrane.
+# tau = 1.5 # membrane pores tortuosiity
+Kair = 2.93e-2*3.6 #kJ/(m K hr) = kW/(m K)/3600 From 'Heat Transfer' dry air property
+Km = 0.29*3.6 #kJ/(m K hr) = kW/(m K)/3600 From A.G Fane.2003, at 75C.
+K = epsilon*Kair + (1-epsilon)*Km
+
+## for the spacer
+df = 0.4e-3 # (m) filament diameter
+hs = 0.8e-3 #(m) thickness of spacer
+epsilon_s = .7785 # 77.85% spacer porosity from [28]
+Kab = 2.90e-2*3.6 #kJ/(m K hr) = kW/(m K)/3600 thermal conductivity of air mixture in air gap. From "heat transer"
+
+
+# For hot side
+# Thb0 = 80. # (C) hotside inlet temperature at x = 0
+# K_hotwater = # kJ/(m K hr) = kW/(m K)/3600 use functions.
+rho_hotwater = 980. #(kg/m3)
+# Sh = 42. #(g/kg) Salinity of hot water.
+Cp_hot = 4.185 #(kJ/kg/C)
+
+# For falling liquid film
+rho_l = 993.5 #(kg/m3) density of falling liquid water. From 'heat transfer'
+rho_av = 1.05 # (kg/m3) density of gas mixture in air gap. From both 'heat transfer and thermal dynamics'
+Kf = 63.0e-2*3.6 # kJ/(m K hr) = kW/(m K)/3600 thermal condutivity of falling water. From "Heat Transer" 
+
+# For cold side
+# TcbL = 20. # (C) coldside inlet temperature at x = L
+# K_coldwater = # kJ/(m K hr) = kW/(m K)/3600 use functions.
+Kw = 40.*3.6 #kJ/(m K hr) = kW/(m K)/3600 40(char-steel). From "Heat Transfer"
+rho_coldwater = 993. #(kg/m3), From "heat transer"
+# Sc = 0. # (g/kg) 
+Cp_cold = 4.179 # (kJ/kg/C)
+# mc = 1.5*60 # (kg/hr) mass flux of cold side saline water.
+
+
+# In[4]:
+
+# Compute C
+def CalculateC(T, P, Pv):
+    '''Params
+    -----------
+    Some are global variables
+    T: Average temperature in membrane.(C)
+    P: Total pressure in membrane.(Pa)
+    Pv: Vapour pressure in membrane.(Pa)
+    
+    Return
+    --------
+    C: membrane mass transfer coefficient.(kg/m2/hr/Pa)
+    '''
+    return 7.81*d*epsilon/delta_m/tau *             Mv*T**1.072/(5.685*(2*np.pi*R*Mv*T)**.5+4*d*R*(P-Pv))
+
+
+# In[5]:
+
+# Compute Thm
+def VerifyThm(Q, Hh, Thb):
+    '''
+    Using Q(eq.37) compute Thm, then compare it with guess Thm. 
+    Params
+    --------
+    Q: (kJ/(m2 hr)) 
+    Hh: (kJ/(m2 K hr)) heat transfer coefficent in hotside channel.
+    Returns
+    ------
+    Thm (verified) C 
+    '''
+    return Thb - Q/Hh 
+
+
+# In[6]:
+
+# Dab
+def CalculateDab(T, P):
+    '''
+    Dab is diffusivity between air and water vapour.
+    Equation of Dab both used in membrane & air-gap mass transfer. 
+    Dab is estimated by T&p, but the dimension is m2/s(or said m2/hr).
+    Params
+    -------
+    T: average temperature in the membrane.(C)
+    P: total pressure in the membrane.(Pa)
+    
+    Returns
+    ---------
+    Dab: (m2/hr)
+    
+    '''
+    return 1.895e-5*T**2.072/P*3600
+
+
+# In[7]:
+
+# Compute A
+def CalculateA(Tavg, P):
+    '''
+    Params
+    ------
+    Tavg: (C) Average temperature inside the membrane.
+    P: (Pa) Total pressure inside the membrane.
+    Returns
+    -------
+    A : (kg/hr/m2/Pa) Jv/A = Pma-Pf 
+    '''
+    Dab = CalculateDab(Tavg,P)
+    return Dab*Mv/delta_a/R/Tavg
+
+
+# In[8]:
+
+# Water vapour partial pressure
+def VaporPressure(T):
+    '''
+    Params
+    ------
+    T: (K) Temperature of water vapour(or mixture of water vapour and air).
+    Attention! T in K!
+    
+    Returns
+    -------
+    P: (Pa) water vapour Partial pressure.
+    '''
+    b = [-7.8889166,2.5514255,-6.716169,33.239495,-105.38479,174.35319,-148.39348,48.631602]
+    Tcrit = 647.25 # K 
+    Pcrit = 22.093e6 # Pa
+    # sum_b = np.zeros(len(T))
+    sum_b = 0.
+    for i in range(8):
+        sum_b += b[i]*(1-T/Tcrit)**(.5*(i+1)+.5)
+    Pd = Pcrit*np.exp(Tcrit/T * sum_b)
+    return Pd 
+
+
+# In[9]:
+
+# miu
+def Calculatemiu(T, S):
+    '''
+    Compute miu, dynamic viscosity of water.
+    Parameters
+    ---------
+    T: (C) water temperature (20<T<180)
+    S: (g/kg) salinity (0<S<130)
+    Returns
+    --------
+    miu: (kg/m/s)
+    
+    '''
+    uw = np.exp(-3.7942+604.129/(139.18+T))
+    A = 1.474e-3 + 1.5e-6*T - 3.927e-8*T**2
+    B = 1.0734e-5 - 8.5e-8*T + 2.23e-10*T**2
+    uR = 1 + A*S + B*S**2
+    return uw*uR*0.001 
+
+
+# In[10]:
+
+# Compute specific heat capacity
+## not used yet.
+def CalculateCp():
+    '''
+    Compute heat capacity for water.
+    Parameters
+    ----------
+    T: (C) water temperature (10,180)
+    S: (g/kg) Salinity (20,160)
+    Returns 
+    ----------
+    Cp: (kJ/kg/C) at constant pressure.
+    
+    '''
+    A = 4206.8 - 6.6197*S + 1.2288e-2*S**2
+    B = -1.1262 + 5.4178e-2*S - 2.2719e-4*S**2 
+    C = 1.2026e-2 - 5.3566e-4*S + 1.8906e-6*S**2 
+    D = 6.8777e-7 + 1.517e-6*S - 4.4268e-9*S**2 
+    return (A+B*T+C*T**2+D*T**3)*0.001 
+
+
+# In[11]:
+
+# enthalpy for saturated water vapour
+def CalculateEnthalpy(T):
+    '''
+    Params
+    ------
+    T: (C) range of (0.01-200 C) Temperature of water vapour.
+    
+    Returns
+    ----------
+    hg: (kJ/kg) Enthalpy in kJ/kg.
+    '''
+    return 2501.689845 + 1.80692*T + 5.08772e-4*T**2
+
+
+# In[12]:
+
+# Compute K of saline water.
+## not used yet
+def CalculateK_water(T, S):
+    '''
+    This func is for liquid salt water.
+    Params
+    -------
+    T: (C) 20-180 C Temperature. (20-80)C is acceptable.
+    S: (g/kg) 0-160 Salinity.
+    
+    Returns
+    --------
+    K: (W/(m C)) Thermal conductivity.
+    
+    ---------------------------------------------------------------------
+    For K, thermal conductivity of membrane.
+    For Kab, thermal conductivity of gas mixture of air and water vapour.
+    For Kf, thermal conductivity of condensed water film.
+    For Kw, thermal conductivity of cooling plate. 
+    
+    Is K varies too small in Temperature range?
+    Range of temperature: 20-80 C
+    20-80C, Kab varies about 16%, Kf about 11%.
+    ## Premise, Kab = 2.83e-2(50C), Kf = 0.618(30C), K = , Kw = 40(char-steel).
+    # Attention! This func. has problem that results is 1000 times larger. I just make results /1000. 
+    # in the range of (20-80)C, the error is acceptable. 
+    '''
+    A = 2e-4
+    B = 3.7e-2 
+    C = 3e-2 
+    Log10_K = np.log10(240+A*S) +            0.434*(2.3-(343.5+B*S)/(T+273.15))*(1-(T+273.15)/(647.3+C*S))**(1./3)
+    K = 10**Log10_K*.001
+    return K
+
+
+# In[13]:
+
+# Compute H 
+def CalculateH(k_liquid,rho,miu,V,Pr):
+    '''
+    This is used for compute H in the hotside or coldside channel.
+    Params
+    ----------
+    k_liquid: (kJ/(m K hr)) thermal conductivity of hot or cold body.
+    rho: (kg/m3) use different rho when compute hot and cold water.
+    miu: (kg/m/s)dynamic viscosity.
+    V: (m/hr) velocity of water.
+    Pr = niu/a = miu*Cp/K # varies a lot!
+    
+    Returns
+    ---------
+    H: (kJ/(m2 K hr))=(3600*kW/(m2 K)) heat transfer coefficient.
+    '''
+    Ks = 1.904*(df/hs)**(-.039)*epsilon_s**.75*np.sin((np.pi/4)**.086)
+    dh = 4.*epsilon_s*df*hs/(2*df + 4*(1-epsilon_s)*hs)
+    Re = rho*dh*V/3600./miu # params of the body.
+    Nu = 0.029*Ks*Re**.8*Pr**.33
+    print "Ks: %r" %Ks
+    print "Nu: %r" %Nu
+    print "Re: %r" %Re
+    return Nu*k_liquid/dh
+
+
+# In[14]:
+
+# Compute Pr
+def CalculatePr(miu,Cp,K):
+    '''
+    This func has 2 method to compute Pr, so that Nu can be calculated.
+    One is linear function.
+    The other is number sections.
+    
+    Params
+    ------ 
+    1.
+    miu: (kg/m/s)
+    cp: (kJ/kg/K)
+    K: (kJ/(m K hr)) # attention! kJ/(...hr)
+    
+    2. T:(C) Temperature of water.
+    
+    Returns
+    ---------
+    Pr 
+    '''
+    
+    return miu*Cp/(K/3600)
+    # if T>=20 and T<40:
+        # Pr = 5.5 
+    # elif T>=40 and T<60:
+        # Pr = 3.6 
+    # elif T>=60 and T<=80:
+        # Pr = 2.6
+    # else:
+        # raise ValueError("Input is out of range!")
+    # return Pr 
+
+
+# In[15]:
+
+# Checking nominal Numbers
+def CheckNumber(name):
+    '''
+    This func is for check: vapour pressure,miu,enthalpy,K_water,heat capacity,Re,Pr,diffusivity.
+    '''
+    # Input values.
+    T_input = np.array([20,30,40,50,60,70,80]) # in C
+    # Test values.
+    # testvalue = np.empty_like(inputvalue,dtype=np.ndarray)
+    print "While the T_inputs are:[20,30,40,50,60,70,80]C."
+    print "The test values are:"
+    if name == 'VapourPressure':
+        Pd = VaporPressure(T_input+273.15)
+        print "Pd, partial vapour pressure: %r (Pa)" %Pd # Pd, VaporPressure() is validated.
+    elif name == 'miu':
+        # pure water S = 0
+        S_purewater = np.zeros(len(T_input))
+        miu_purewater = Calculatemiu(T_input,S_purewater)
+        testvalue.append(miu_purewater)
+        print "miu, dynamic viscosity of pure water: %r (Pa s)" %miu_purewater # miu, Validated.
+        S_salinewater = np.ones(len(T_input))*35
+        miu_salinewater = Calculatemiu(T_input,S_salinewater)
+        testvalue.append(miu_salinewater)
+        print "miu, dynamic viscosity of saline water: %r (Pa s)" %miu_salinewater # miu, Validated.
+    elif name == 'enthalpy':
+        enthalpy = CalculateEnthalpy(T_input)
+        print "Enthalpy of water vapour: %r (kJ/kg)" %enthalpy # Enthalpy validated.
+    elif name == 'K_water':
+        K_water = CalculateK_water(T_input,0)
+        print "K_water for pure water: %r (W/(m C))" %K_water # NOT!
+    elif name == 'Pr':
+        # for pure water:
+        S_purewater = np.zeros(len(T_input))
+        miu = Calculatemiu(T_input,S_purewater)
+        Cp = 4.19*1000 #J/kg/C
+        K = .63 #W/m/C
+        Pr = CalculatePr(miu,Cp,K)
+        print "Pr for pure water is: %r" %Pr # Pr is Validated.
+    elif name == 'diffusivity':
+        P = 101325 # Pa
+        T = 313 #C
+        D = CalculateDab(T,P)
+        print "Diffusivity between water vapour and air: %r" % D # NOT!
+    elif name == 'H':
+        V = 2.*3600 #(m/hr) average velocity of water
+        miu = Calculatemiu(30.,0)
+        Pr = 5.42 #CalculatePr(miu_hot,Cp_hot,K_hotwater)
+        rho = 1000. #(kg/m3)
+        k_l = 0.618 #(W/(m K))
+        H = CalculateH(k_l,rho,miu,V,Pr)
+        print "H, for Heat Transfer a example: %r (W/(m2 K))" %H # Validated, but whether dh is right?
+        print "miu: %r(Pa s)" %miu
+    else:
+        raise ValueError("Please input a valid string!")
+
+
+# In[16]:
+
+CheckNumber('H')
+
+
+# In[17]:
+
+# Initializing
+def Init(Nx,length_x,mh0):
+    '''
+    Initial properties of working medium.
+    Params
+    ------
+    All global variables.
+    
+    Returns
+    ---------
+    All Numpy arrays.
+    Thb,Tcb,Tf,Thm,Tma,Tfw,Tcw,mh,S_hot
+    '''
+    # For i = 0, Thb0,Tcb0,x0.
+    # For i = -1, ThbL,TcbL,xL.
+    # Temperature in C.
+    Thb = np.ones(Nx)*Thb0 
+    Tcb = np.ones(Nx)*TcbL 
+    Tf = np.ones(Nx)
+    Thm = np.ones(Nx)
+    Tma = np.ones(Nx)
+    Tfw = np.ones(Nx)
+    Tcw = np.ones(Nx)
+    mh = np.ones(Nx)*mh0
+    S_hot = np.ones(Nx)*Sh
+    
+    return Thb,Tcb,Tf,Thm,Tma,Tfw,Tcw,mh,S_hot
+
+
+# In[18]:
+
+# Computation for Jv
+def ComputationForJv(Tave,Thm,Tf):
+    '''
+    For neat code in the Loop.
+    '''
+    Pv = VaporPressure(Tave+273.15) # water vapour pressure inside membrane
+    C = CalculateC(Tave,Ptotal,Pv)
+    A = CalculateA(Tave,Ptotal)
+    Phm = VaporPressure(Thm+273.15)
+    Pf = VaporPressure(Tf+273.15)
+    return C,A,Phm,Pf
+
+
+# In[19]:
+
+# Computation for Q
+def ComputationForQ(mh,Thm,Tf,Thb,S_hot):
+    '''
+    Forc neat code in the Loop.
+    '''
+    Vh = mh/rho_hotwater/(W*height)#(m/hr) average velocity of water
+    hg = CalculateEnthalpy(.5*(Thm+Tf))
+    miu_hot = Calculatemiu(Thb,S_hot)
+    Pr_hot = CalculatePr(miu_hot,Cp_hot,K_hotwater)
+    Hh = CalculateH(K_hotwater,rho_hotwater,miu_hot,Vh,Pr_hot)
+    return hg,Hh
+
+
+# In[20]:
+
+# Computation for Tf
+def ComputationForTf(Tcb):
+    '''For neat code.'''
+    Vc = mc/rho_coldwater/(W*height)#(m/hr) average velocity of water
+    miu_cold = Calculatemiu(Tcb,Sc)
+    Pr_cold = CalculatePr(miu_cold,Cp_cold,K_coldwater)
+    Hc = CalculateH(K_coldwater,rho_coldwater,miu_cold,Vc,Pr_cold)
+    return Hc
+
+
+# In[21]:
+
+currentRegime = 'co-current' # 'co-current' or 'counter-current'
+
+
+# In[22]:
+
+# Loop for counter-current
+
+'''This Loop needs to be verify, using the next "co-current" Loop.
+'''
+if currentRegime == 'counter-current':
+    print "The following results are from counter-current."
+else:
+    raise ValueError("The process blocked. This can't be iterated in counter-current regime")
+    
+learnRate = 1.
+error_Tcb = 10.
+error_i = 0 # alpha/(error_i+1) to make alpha decrease every step.
+Tcb[0] = .5*(Thb[0]+Tcb[-1]) # supposed
+while error_Tcb > 0.1:
+    # how large the error?
+    
+    ## store what values want to show.
+    Jv_N = []
+    Q_N = []
+    delta_fN = []
+    
+    for i in range(Nx):
+
+        error_Tf = 10.
+        Tf[i] = .5*(Thb[i]+Tcb[i]) # supposed
+        while error_Tf > 0.1:
+            # error large?
+            error_Thm = 10.
+            Thm[i] = .5*(Thb[i]+Tf[i]) # supposed
+            error_Thm_threshold = 0.1 # threshold for error(while)
+            while error_Thm > error_Thm_threshold:
+                # How large is the error? -- speed up! if clause for error_threshold ,when error_ is considerable small.
+                
+                Tave = .5*(Thm[i]+Tma[i]) # average temperature inside membrane
+                C,A,Phm,Pf = ComputationForJv(Tave,Thm[i],Tf[i])
+                Jv = (1./C + 1./A)**(-1)*(Phm-Pf) #Compute C,A,Pf,Pmh
+                
+                hg,Hh = ComputationForQ(mh[i],Thm[i],Tf[i],Thb[i],S_hot[i])
+                Q = (Thb[i] - Tf[i] + Jv*hg*(delta_m/K+delta_a/Kab))/(1./Hh+delta_m/K+delta_a/Kab) 
+                #Compute hg,Hh. K,delta_a/m are Const. T depends on grid.
+                
+                Thm_temp = VerifyThm(Q,Hh,Thb[i])
+                error_Thm = abs(Thm_temp - Thm[i])
+                Thm[i] = Thm_temp
+            
+            miu_f = Calculatemiu(Tf[i],0)
+            delta_f = (3.*Jv*miu_f*rho_l*(rho_l - rho_av)*g*x[i])**(1./3) #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
+            
+            Hc = ComputationForTf(Tcb[i])
+            Tf_temp = Q*(delta_f/Kf+delta_c/Kw+1./Hc) + Tcb[i] # Kf/w,delta_c/f are Const. Hc needs computed. T depends on grid.
+            
+            error_Tf = abs(Tf_temp - Tf[i])
+            Tf[i] = Tf_temp
+        # Next state
+        mh[i+1] = mh[i]-Jv*dx*W
+        S[i+1] = mh[i]*S[i]/mh[i+1]
+        # compute Cph,Cpc separately
+        Thb[i+1] = (mh[i]*Cp_hot*Thb[i] - Q*dx*W)/Cp_hot/mh[i+1]
+        Tcb[i+1] = Tcb[i] - Q*dx*W/(Cp_cold*mc)
+        
+        # Outputs Jv,Q,delta_f arrays
+        Jv_N.append(Jv)
+        Q_N.append(Q)
+        delta_fN.append(delta_f)
+    
+    temp_move = Tcb[-1] - TcbL
+    error_Tcb = abs(temp_move)
+    
+    alpha = 1./(error_i+1)*learnRate
+    error_i += 1 
+    Tcb[0] = Tcb[0] - temp_move*alpha
+
+
+# In[ ]:
+
+# Checking
+def Checking(Jv,delta_f,Q,Tf,temp):
+    '''
+    This func is only for checking inter-loop results by print them.
+    
+    '''
+    print 
+    print "This is checking function:"
+    print 'Jv, water vapor flux: %r(kg/m2/hr)' %Jv
+    print "delta_f: %r (m)" %delta_f 
+    print "Q, transport energy: %r(kJ/m2/hr)" %Q 
+    print "Tf,temperature of falling water flim: %r(C)" %Tf 
+    print "The criterion value is: %r " %temp
+
+
+# In[ ]:
+
+Thb,Tcb,Tf,Thm,Tma,Tfw,Tcw,mh,S_hot = Init(Nx,length_x,mh0)
+
+
+# In[ ]:
+
+# Loop for co-current
+if currentRegime == 'co-current':
+    print "The following results are from co-current."
+else:
+    raise ValueError("The process blocked. This can't be iterated in co-current regime")
+    
+'''
+learnRate = 1.
+error_Tcb = 10.
+error_i = 0 # alpha/(error_i+1) to make alpha decrease every step.
+Tcb[0] = .5*(Thb[0]+Tcb[-1]) # supposed
+'''
+
+## store what values want to show.
+Jv_N = []
+Q_N = []
+delta_fN = []
+
+for i in range(Nx):
+    error_Tf = 10.
+    Tf[i] = .5*(Thb[i]+Tcb[i]) # supposed
+    while error_Tf > 0.1:
+        # error large?
+        error_Thm = 10.
+        Thm[i] = .5*(Thb[i]+Tf[i]) # supposed
+        error_Thm_threshold = 1e-5 # threshold for error(while)
+        while error_Thm > error_Thm_threshold:
+            # How large is the error? -- speed up! if clause for error_threshold ,when error_ is considerable small.
+
+            Tave = .5*(Thm[i]+Tma[i]) # average temperature inside membrane
+            C,A,Phm,Pf = ComputationForJv(Tave,Thm[i],Tf[i])
+            Jv = (1./C + 1./A)**(-1)*(Phm-Pf) #Compute C,A,Pf,Pmh
+
+            hg,Hh = ComputationForQ(mh[i],Thm[i],Tf[i],Thb[i],S_hot[i])
+            Q = (Thb[i] - Tf[i] + Jv*hg*(delta_m/K+delta_a/Kab))/(1./Hh+delta_m/K+delta_a/Kab) 
+            #Compute hg,Hh. K,delta_a/m are Const. T depends on grid.
+
+            Thm_temp = VerifyThm(Q,Hh,Thb[i])
+            error_Thm = abs(Thm_temp - Thm[i])
+            Thm[i] = Thm_temp
+            
+            #Checking
+            Checking(Jv,"no deltaf",Q,Tf[i],Thm[i])
+            
+
+        raw_input("1st Loop ends here. Use kepboard to interrupt.")
+        miu_f = Calculatemiu(Tf[i],0)
+        #$delta_f = (3.*Jv*miu_f*rho_l*(rho_l - rho_av)*g*x[i])**(1./3) #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
+        delta_f = (3.*Jv/3600*miu_f/(rho_l*(rho_l - rho_av)*g)*x[i])**(1./3) #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
+        Hc = ComputationForTf(Tcb[i])
+        Tf_temp = Q*(delta_f/Kf+delta_c/Kw+1./Hc) + Tcb[i] # Kf/w,delta_c/f are Const. Hc needs computed. T depends on grid.
+
+        error_Tf = abs(Tf_temp - Tf[i])
+        Tf[i] = Tf_temp
+    # Next state
+    mh[i+1] = mh[i]-Jv*dx*W
+    S_hot[i+1] = mh[i]*S_hot[i]/mh[i+1]
+    # compute Cph,Cpc separately
+    Thb[i+1] = (mh[i]*Cp_hot*Thb[i] - Q*dx*W)/Cp_hot/mh[i+1]
+    Tcb[i+1] = Tcb[i] - Q*dx*W/(Cp_cold*mc)
+
+    # Outputs Jv,Q,delta_f arrays
+    Jv_N.append(Jv)
+    Q_N.append(Q)
+    delta_fN.append(delta_f)
+'''
+temp_move = Tcb[-1] - TcbL
+error_Tcb = abs(temp_move)
+
+alpha = 1./(error_i+1)*learnRate
+error_i += 1 
+Tcb[0] = Tcb[0] - temp_move*alpha'''
+
+
+# In[ ]:
+
+
+
