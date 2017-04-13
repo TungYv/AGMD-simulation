@@ -5,13 +5,13 @@
 # This notebook is used for AGMD programming.
 # '''
 
-# In[1]:
+# In[2]:
 
 import numpy as np
 # from matplotlib import pyplot
 
 
-# In[2]:
+# In[46]:
 
 def InitCase(Case):
     '''
@@ -31,8 +31,8 @@ def InitCase(Case):
         
         # For modeling
         ## 10cm*5cm membrane? 15m*1m? But teacher said make width = 1.0 m
-        length_x = 10.0e-2 #(m) the length of the model
-        W = 5.0e-2 # (m) width(horizontal) of the model, vertical to the paper.
+        length_x = 15. #(m) the length of the model
+        W = 1. # (m) width(horizontal) of the model, vertical to the paper.
         height = 2.0e-3 #(m) height of water channel for both hotside and coldside.
         delta_a = 9e-3 # (m) Width of the air gap.
         
@@ -45,7 +45,7 @@ def InitCase(Case):
     return mh0,mc,Thb0,TcbL,K_hotwater,K_coldwater,Sh,Sc,length_x,W,height,delta_a,d,tau
 
 
-# In[3]:
+# In[47]:
 
 # Global Parameters
 '''densities of water and gas do not change.'''
@@ -53,7 +53,7 @@ def InitCase(Case):
 mh0,mc,Thb0,TcbL,K_hotwater,K_coldwater,Sh,Sc,length_x,W,height,delta_a,d,tau = InitCase("fig8")
 # Mesh setup
 # length_x = 15. #(m) the length of the model
-Nx = 300 # number of total grids
+Nx = 20 # number of total grids
 x = np.linspace(0,length_x,Nx)
 dx = length_x/(Nx-1)
 
@@ -108,7 +108,7 @@ Cp_cold = 4.179 # (kJ/kg/C)
 # mc = 1.5*60 # (kg/hr) mass flux of cold side saline water.
 
 
-# In[4]:
+# In[5]:
 
 # Compute C
 def CalculateC(T, P, Pv):
@@ -126,7 +126,7 @@ def CalculateC(T, P, Pv):
     return 7.81*d*epsilon/delta_m/tau *             Mv*T**1.072/(5.685*(2*np.pi*R*Mv*T)**.5+4*d*R*(P-Pv))
 
 
-# In[5]:
+# In[6]:
 
 # Compute Thm
 def VerifyThm(Q, Hh, Thb):
@@ -143,7 +143,7 @@ def VerifyThm(Q, Hh, Thb):
     return Thb - Q/Hh 
 
 
-# In[6]:
+# In[7]:
 
 # Dab
 def CalculateDab(T, P):
@@ -164,7 +164,7 @@ def CalculateDab(T, P):
     return 1.895e-5*T**2.072/P*3600
 
 
-# In[7]:
+# In[8]:
 
 # Compute A
 def CalculateA(Tavg, P):
@@ -181,7 +181,7 @@ def CalculateA(Tavg, P):
     return Dab*Mv/delta_a/R/Tavg
 
 
-# In[8]:
+# In[9]:
 
 # Water vapour partial pressure
 def VaporPressure(T):
@@ -206,7 +206,7 @@ def VaporPressure(T):
     return Pd 
 
 
-# In[9]:
+# In[10]:
 
 # miu
 def Calculatemiu(T, S):
@@ -228,7 +228,7 @@ def Calculatemiu(T, S):
     return uw*uR*0.001 
 
 
-# In[10]:
+# In[11]:
 
 # Compute specific heat capacity
 ## not used yet.
@@ -251,7 +251,7 @@ def CalculateCp():
     return (A+B*T+C*T**2+D*T**3)*0.001 
 
 
-# In[11]:
+# In[12]:
 
 # enthalpy for saturated water vapour
 def CalculateEnthalpy(T):
@@ -267,7 +267,7 @@ def CalculateEnthalpy(T):
     return 2501.689845 + 1.80692*T + 5.08772e-4*T**2
 
 
-# In[12]:
+# In[13]:
 
 # Compute K of saline water.
 ## not used yet
@@ -304,7 +304,7 @@ def CalculateK_water(T, S):
     return K
 
 
-# In[13]:
+# In[14]:
 
 # Compute H 
 def CalculateH(k_liquid,rho,miu,V,Pr):
@@ -326,13 +326,15 @@ def CalculateH(k_liquid,rho,miu,V,Pr):
     dh = 4.*epsilon_s*df*hs/(2*df + 4*(1-epsilon_s)*hs)
     Re = rho*dh*V/3600./miu # params of the body.
     Nu = 0.029*Ks*Re**.8*Pr**.33
+    '''
     print "Ks: %r" %Ks
     print "Nu: %r" %Nu
     print "Re: %r" %Re
+    '''
     return Nu*k_liquid/dh
 
 
-# In[14]:
+# In[15]:
 
 # Compute Pr
 def CalculatePr(miu,Cp,K):
@@ -367,7 +369,7 @@ def CalculatePr(miu,Cp,K):
     # return Pr 
 
 
-# In[15]:
+# In[16]:
 
 # Checking nominal Numbers
 def CheckNumber(name):
@@ -387,11 +389,9 @@ def CheckNumber(name):
         # pure water S = 0
         S_purewater = np.zeros(len(T_input))
         miu_purewater = Calculatemiu(T_input,S_purewater)
-        testvalue.append(miu_purewater)
         print "miu, dynamic viscosity of pure water: %r (Pa s)" %miu_purewater # miu, Validated.
         S_salinewater = np.ones(len(T_input))*35
         miu_salinewater = Calculatemiu(T_input,S_salinewater)
-        testvalue.append(miu_salinewater)
         print "miu, dynamic viscosity of saline water: %r (Pa s)" %miu_salinewater # miu, Validated.
     elif name == 'enthalpy':
         enthalpy = CalculateEnthalpy(T_input)
@@ -403,34 +403,34 @@ def CheckNumber(name):
         # for pure water:
         S_purewater = np.zeros(len(T_input))
         miu = Calculatemiu(T_input,S_purewater)
-        Cp = 4.19*1000 #J/kg/C
-        K = .63 #W/m/C
-        Pr = CalculatePr(miu,Cp,K)
-        print "Pr for pure water is: %r" %Pr # Pr is Validated.
+        #Cp = 4.19 #kJ/kg/C
+        #K = .63 #W/m/C
+        Pr = CalculatePr(miu,Cp_hot,K_hotwater)
+        print "Pr for pure hot water is: %r" %Pr # Pr is Validated.
     elif name == 'diffusivity':
         P = 101325 # Pa
         T = 313 #C
         D = CalculateDab(T,P)
         print "Diffusivity between water vapour and air: %r" % D # NOT!
     elif name == 'H':
-        V = 2.*3600 #(m/hr) average velocity of water
-        miu = Calculatemiu(30.,0)
-        Pr = 5.42 #CalculatePr(miu_hot,Cp_hot,K_hotwater)
-        rho = 1000. #(kg/m3)
-        k_l = 0.618 #(W/(m K))
+        V = 1.5*3600 #(m/hr) average velocity of water
+        miu = Calculatemiu(40.,0)
+        Pr = 4.102 #CalculatePr(miu_hot,Cp_hot,K_hotwater)
+        rho = 991. #(kg/m3)
+        k_l = 0.638*3.6 #(W/(m K))
         H = CalculateH(k_l,rho,miu,V,Pr)
-        print "H, for Heat Transfer a example: %r (W/(m2 K))" %H # Validated, but whether dh is right?
+        print "H, for Heat Transfer a example: %r (kJ/(m2 K hr))= %r (W/(m2 K))" %(H,H/3.6) # Validated, but whether dh is right?
         print "miu: %r(Pa s)" %miu
     else:
-        raise ValueError("Please input a valid string!")
+        raise ValueError("No such function. Please input a valid string!")
 
 
-# In[16]:
+# In[17]:
 
 CheckNumber('H')
 
 
-# In[17]:
+# In[18]:
 
 # Initializing
 def Init(Nx,length_x,mh0):
@@ -461,7 +461,7 @@ def Init(Nx,length_x,mh0):
     return Thb,Tcb,Tf,Thm,Tma,Tfw,Tcw,mh,S_hot
 
 
-# In[18]:
+# In[19]:
 
 # Computation for Jv
 def ComputationForJv(Tave,Thm,Tf):
@@ -476,7 +476,7 @@ def ComputationForJv(Tave,Thm,Tf):
     return C,A,Phm,Pf
 
 
-# In[19]:
+# In[20]:
 
 # Computation for Q
 def ComputationForQ(mh,Thm,Tf,Thb,S_hot):
@@ -491,7 +491,7 @@ def ComputationForQ(mh,Thm,Tf,Thb,S_hot):
     return hg,Hh
 
 
-# In[20]:
+# In[21]:
 
 # Computation for Tf
 def ComputationForTf(Tcb):
@@ -503,12 +503,12 @@ def ComputationForTf(Tcb):
     return Hc
 
 
-# In[21]:
+# In[22]:
 
 currentRegime = 'co-current' # 'co-current' or 'counter-current'
 
 
-# In[22]:
+# In[23]:
 
 # Loop for counter-current
 
@@ -583,7 +583,7 @@ while error_Tcb > 0.1:
     Tcb[0] = Tcb[0] - temp_move*alpha
 
 
-# In[ ]:
+# In[24]:
 
 # Checking
 def Checking(Jv,delta_f,Q,Tf,temp):
@@ -600,12 +600,12 @@ def Checking(Jv,delta_f,Q,Tf,temp):
     print "The criterion value is: %r " %temp
 
 
-# In[ ]:
+# In[53]:
 
 Thb,Tcb,Tf,Thm,Tma,Tfw,Tcw,mh,S_hot = Init(Nx,length_x,mh0)
 
 
-# In[ ]:
+# In[58]:
 
 # Loop for co-current
 if currentRegime == 'co-current':
@@ -625,14 +625,15 @@ Jv_N = []
 Q_N = []
 delta_fN = []
 
-for i in range(Nx):
+for i in range(Nx-1):
+    print i
     error_Tf = 10.
     Tf[i] = .5*(Thb[i]+Tcb[i]) # supposed
-    while error_Tf > 0.1:
+    while error_Tf > 0.001:
         # error large?
         error_Thm = 10.
         Thm[i] = .5*(Thb[i]+Tf[i]) # supposed
-        error_Thm_threshold = 1e-5 # threshold for error(while)
+        error_Thm_threshold = 1e-1 # threshold for error(while)
         while error_Thm > error_Thm_threshold:
             # How large is the error? -- speed up! if clause for error_threshold ,when error_ is considerable small.
 
@@ -649,10 +650,11 @@ for i in range(Nx):
             Thm[i] = Thm_temp
             
             #Checking
-            Checking(Jv,"no deltaf",Q,Tf[i],Thm[i])
+            #Checking(Jv,"no deltaf",Q,Tf[i],Thm[i])
             
 
-        raw_input("1st Loop ends here. Use kepboard to interrupt.")
+        print "1st Loop ends here. Use kepboard to interrupt."
+        #raw_input()
         miu_f = Calculatemiu(Tf[i],0)
         #$delta_f = (3.*Jv*miu_f*rho_l*(rho_l - rho_av)*g*x[i])**(1./3) #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
         delta_f = (3.*Jv/3600*miu_f/(rho_l*(rho_l - rho_av)*g)*x[i])**(1./3) #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
@@ -661,6 +663,11 @@ for i in range(Nx):
 
         error_Tf = abs(Tf_temp - Tf[i])
         Tf[i] = Tf_temp
+        # Checking 
+        #Checking(Jv,delta_f,Q,Tf[i],"Tf[i]")
+    
+    print "2nd Loop ends here. Use keyboard to interrupt."
+    #raw_input()
     # Next state
     mh[i+1] = mh[i]-Jv*dx*W
     S_hot[i+1] = mh[i]*S_hot[i]/mh[i+1]
@@ -672,6 +679,12 @@ for i in range(Nx):
     Jv_N.append(Jv)
     Q_N.append(Q)
     delta_fN.append(delta_f)
+
+# Checking output
+print "Jv along the length: %r (kg/(m2 hr))" %Jv_N
+print "Q along the length: %r (kJ/m2/hr)" %Q_N
+print "delta_f along the length: %r (m)" %delta_fN
+
 '''
 temp_move = Tcb[-1] - TcbL
 error_Tcb = abs(temp_move)
@@ -679,6 +692,11 @@ error_Tcb = abs(temp_move)
 alpha = 1./(error_i+1)*learnRate
 error_i += 1 
 Tcb[0] = Tcb[0] - temp_move*alpha'''
+
+
+# In[42]:
+
+print ("print a format {:.2f} {} {}" .format(Jv,12.4,.643))
 
 
 # In[ ]:
