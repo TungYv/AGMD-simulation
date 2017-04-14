@@ -65,7 +65,7 @@ delta_c = 0.25e-3 # (m) Thickness of coolant wall--stainless steel sheet.
 
 # Universal constant
 Mv = 18 # water 18kg/kmole
-R = 8.314 #(J/(kmol K)) kmol, J unsure...
+R = 8.314*1000 #(J/(kmol K)) kmol, J unsure...
 g = 9.80 # (m/s2) gravity
 Ptotal = 101325 # Total pressure in the model, p = 101325Pa.
 
