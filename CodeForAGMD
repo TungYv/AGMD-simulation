@@ -5,14 +5,14 @@
 
 # For Alsaadi's 2013, with a spacer --> Change: 1.func.CalculateH 2.spacer properties.
 
-# In[47]:
+# In[1]:
 
 import numpy as np
 from matplotlib import pyplot
 get_ipython().magic(u'matplotlib inline')
 
 
-# In[48]:
+# In[2]:
 
 # Universal constant
 Mv = 18 #(kg/kmol) water 18kg/kmole
@@ -47,7 +47,7 @@ epsilon = 0.8 # porosity of membrane
 K = epsilon*Kair + (1-epsilon)*Km
 
 
-# In[49]:
+# In[3]:
 
 # Compute C
 def CalculateC(d,delta_m,tau,T, P, Pv):
@@ -69,7 +69,7 @@ def CalculateC(d,delta_m,tau,T, P, Pv):
     return 7.81*d*epsilon/delta_m/tau*Mv*T**1.072/(5.685*(2*np.pi*R*Mv*T)**.5+4*d*R*(P-Pv))
 
 
-# In[50]:
+# In[4]:
 
 # Compute Thm
 def VerifyThm(Q, Hh, Thb):
@@ -86,7 +86,7 @@ def VerifyThm(Q, Hh, Thb):
     return Thb - Q/Hh 
 
 
-# In[51]:
+# In[5]:
 
 # Dab
 def CalculateDab(T, P):
@@ -111,7 +111,7 @@ def CalculateDab(T, P):
     #return 3e-5*3600
 
 
-# In[52]:
+# In[6]:
 
 # Compute A
 def CalculateA(Tavg, P,air_gap_width):
@@ -129,7 +129,7 @@ def CalculateA(Tavg, P,air_gap_width):
     return Dab*Mv/air_gap_width/R/Tavg
 
 
-# In[53]:
+# In[7]:
 
 # Water vapour partial pressure
 def VaporPressure(T):
@@ -154,7 +154,7 @@ def VaporPressure(T):
     return Pd 
 
 
-# In[54]:
+# In[8]:
 
 # miu
 def Calculatemiu(T, S):
@@ -176,7 +176,7 @@ def Calculatemiu(T, S):
     return uw*uR*0.001 
 
 
-# In[55]:
+# In[9]:
 
 # Compute specific heat capacity
 ## not used yet.
@@ -199,7 +199,7 @@ def CalculateCp(T,S):
     return (A+B*T+C*T**2+D*T**3)*0.001 
 
 
-# In[56]:
+# In[10]:
 
 # enthalpy for saturated water vapour
 def CalculateEnthalpy(T):
@@ -215,7 +215,7 @@ def CalculateEnthalpy(T):
     return 2501.689845 + 1.80692*T + 5.08772e-4*T**2
 
 
-# In[57]:
+# In[11]:
 
 # Compute K of saline water.
 def CalculateK_water(T, S):
@@ -251,7 +251,7 @@ def CalculateK_water(T, S):
     return Kwater*3.6
 
 
-# In[58]:
+# In[12]:
 
 # Compute H 
 def CalculateH(width,height,k_liquid,rho,miu,V,Pr):
@@ -283,7 +283,7 @@ def CalculateH(width,height,k_liquid,rho,miu,V,Pr):
     return Nu*k_liquid/dh
 
 
-# In[59]:
+# In[13]:
 
 # Compute Pr
 def CalculatePr(miu,Cp,lambda_liquid):
@@ -318,7 +318,7 @@ def CalculatePr(miu,Cp,lambda_liquid):
     # return Pr 
 
 
-# In[60]:
+# In[14]:
 
 # Checking nominal Numbers
 def CheckNumber(name):
@@ -379,12 +379,12 @@ def CheckNumber(name):
         raise NameError("My Error! No such function. Please input a valid string!")
 
 
-# In[61]:
+# In[15]:
 
 CheckNumber('H')
 
 
-# In[62]:
+# In[16]:
 
 # Computation for Jv
 def ComputationForJv(d,delta_m,tau,Tave,Thm,Tf,air_gap_width):
@@ -399,7 +399,7 @@ def ComputationForJv(d,delta_m,tau,Tave,Thm,Tf,air_gap_width):
     return C,A,Phm,Pf
 
 
-# In[63]:
+# In[17]:
 
 # Computation for Q
 def ComputationForQ(width,height,mh,Thm,Tf,Thb,S_hot,K_hotwater):
@@ -414,7 +414,7 @@ def ComputationForQ(width,height,mh,Thm,Tf,Thb,S_hot,K_hotwater):
     return hg,Hh
 
 
-# In[64]:
+# In[18]:
 
 # Computation for Tf
 def ComputationForTf(width,height,mc,Sc,Tcb,Tf):
@@ -428,7 +428,7 @@ def ComputationForTf(width,height,mc,Sc,Tcb,Tf):
     return Hc,K_fallingwater
 
 
-# In[65]:
+# In[19]:
 
 # Checking
 def Checking(Jv,delta_f,Q,Tf,temp):
@@ -445,7 +445,7 @@ def Checking(Jv,delta_f,Q,Tf,temp):
     print "The criterion value is: %r " %temp
 
 
-# In[66]:
+# In[28]:
 
 class AGMD:
     '''Using for computing AGMD process. Single input and equal output.'''
@@ -651,24 +651,24 @@ class AGMD:
         print "Air gap distance: %.2f mm"%(self.delta_a*1000)
         print 
         
-        learnRate = 1.
+        learnRate = 2.
         error_Tcb = 10.
         error_i = 0. # alpha/(error_i+1) to make alpha decrease every step.
         self.Tcb[0] = .5*(self.Thb[0]+self.Tcb[-1]) # supposed
-        while error_Tcb > 0.01 or error_i <= 20:
+        while error_Tcb > 1e-3 and error_i <= 20:
 
             for i in range(Nx):
                 #print "Step %r of %r." %(i,Nx)
                 error_Tf = 10.
                 self.Tf[i] = .5*(self.Thb[i]+self.Tcb[i]) # supposed
                 Tf_step = 0
-                while error_Tf > 0.1 or Tf_step <= 20:
+                while error_Tf > 1e-3 and Tf_step <= 20:
                     Tf_step += 1
                     error_Thm = 10.
                     self.Thm[i] = .5*(self.Thb[i]+self.Tf[i]) # supposed
-                    error_Thm_threshold = 1e-1 # threshold for error(while)
+                    error_Thm_threshold = 1e-3 # threshold for error(while)
                     Thm_step = 0
-                    while error_Thm > error_Thm_threshold or Thm_step <= 30:
+                    while error_Thm > error_Thm_threshold and Thm_step <= 30:
                         Thm_step += 1
                         Tave = .5*(self.Thm[i]+self.Tma[i]) # average temperature inside membrane
                         C,A,Phm,Pf = ComputationForJv(self.diameter_pore_size,self.delta_m,self.tau_membrane,                                                      Tave,self.Thm[i],self.Tf[i],self.delta_a)
@@ -720,7 +720,7 @@ class AGMD:
                     # compute Cph,Cpc separately
                     self.Thb[i+1] = (self.mh[i]*Cp_hot*self.Thb[i] - Q*self.dx*self.width_effective)/Cp_hot/self.mh[i+1]
                     #print "Thb[%r]: %r" %(i,Thb[i])
-                    self.Tcb[i+1] = self.Tcb[i] + Q*self.dx*self.width_effective/(Cp_cold*self.mass_cold_inlet)
+                    self.Tcb[i+1] = self.Tcb[i] - Q*self.dx*self.width_effective/(Cp_cold*self.mass_cold_inlet)
                     #print "Tcb[%r]: %r" %(i,Tcb[i])
                 else:
                     print "The end. i = %d."%i
@@ -735,9 +735,9 @@ class AGMD:
             print "Tcb[-1]: %.3f C" %self.Tcb[-1]
             error_Tcb = abs(temp_move)
 
-            alpha = 1./(error_i+1)*learnRate
+            alpha = 1./(.5*error_i+1)*learnRate
             error_i += 1 
-            self.Tcb[0] = self.Tcb[0] - temp_move*alpha
+            self.Tcb[0] = self.Tcb[0] - temp_move
         #checking output
         print 'Difference of Tcb between steps is: %r' %error_Tcb
         print 
@@ -750,7 +750,7 @@ class AGMD:
         print "Average of sum(flux)/Nx: %.2f " %(sum(self.Jv_flux_condensed_water_along)/Nx)
 
 
-# In[67]:
+# In[21]:
 
 def plot_along_membrane(plot_title,plot_ylabel,x_values,y_values,y_limits):
     '''
@@ -779,7 +779,7 @@ def plot_along_membrane(plot_title,plot_ylabel,x_values,y_values,y_limits):
     pyplot.plot(x_values,y_values,color='#003366',ls='-')
 
 
-# In[68]:
+# In[22]:
 
 def plot_temperature(plot_title,plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,plot_ylabel5,                     x_values,y_values1,y_values2,y_values3,y_values4,y_values5,y_limits):
     '''
@@ -814,17 +814,33 @@ def plot_temperature(plot_title,plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylab
     pyplot.legend((plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,plot_ylabel5))
 
 
-# In[24]:
+# In[23]:
 
 help(AGMD)
 
 
-# In[29]:
+# In[32]:
 
-test_alsaadi = AGMD(_L=.1,_W=.05,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=40.*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=1.5*60,_mci=1.5*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+test_alsaadi = AGMD(_L=10.,_W=.05,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=40.*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=1.5*60,_mci=1.5*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
 Nx = 20
 test_alsaadi.get_mesh_setup(Nx)
-test_alsaadi.get_co_current(Nx)
+test_alsaadi.get_counter_current(Nx)
+
+
+# In[25]:
+
+def post_checking(check_instance):
+    print "mh: %r" %(check_instance.mh)
+    print "S_hot: %r g/kg" %(check_instance.S_hot)
+    print "Thb along the membrane %r C" %check_instance.Thb
+    print "Thm along the membrane %r C" %check_instance.Thm
+    print "Tma along the membrane %r C" %check_instance.Tma
+    print "Tf along the membrane %r C" %check_instance.Tf
+    print "Tcb along the membrane %r C" %check_instance.Tcb
+    print "Jv along the length: %r (kg/(m2 hr))" %check_instance.Jv_flux_condensed_water_along
+    print "Q_heat transfer along the length: %r (kJ/m2/hr)" %check_instance.Q_heattransfer_along
+    print "delta_f along the length: %r (m)" %check_instance.delta_f_condensed_water_along
+post_checking(test_alsaadi)
 
 
 # In[36]:
@@ -852,17 +868,6 @@ for T_i,thi_N in enumerate(Temperature_hot_inlet):
 print "Single error: L1-norm: %r " %L1_norm
 L2_norm = sum(((Jv_simulate_N - Jv_exp_fig8_re)/Jv_exp_fig8_re)**2)**(.5)
 print "Total L2-norm: %r " %L2_norm
-
-
-# In[52]:
-
-def checkingT(check_instance):
-    print "Thb along the membrane %r C" %check_instance.Thb
-    print "Thm along the membrane %r C" %check_instance.Thm
-    print "Tma along the membrane %r C" %check_instance.Tma
-    print "Tf along the membrane %r C" %check_instance.Tf
-    print "Tcb along the membrane %r C" %check_instance.Tcb
-checkingT(test_alsaadi)
 
 
 # In[73]:
@@ -940,7 +945,7 @@ plot_along_membrane(plot_title="Test1",plot_ylabel="Q(kJ/m2 hr)",x_values=test_a
 help(plot_temperature)
 
 
-# In[34]:
+# In[31]:
 
 plot_temperature("Test1","Thb","Thm","Tma","Tf","Tcb",test_alsaadi.x,                    test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tcb,[19.5,80.5])
 
