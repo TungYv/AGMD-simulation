@@ -3,6 +3,11 @@
 
 # This notebook is used for AGMD programming. Attention! For membrane's porosity needs to change both in Global and in Class.
 
+# # This is the MASTER.
+# ## Last Checkpoint:
+# 1. CalculateH_coldside has 2 methods.
+# 2. func. of heat resistance created.
+
 # For Alsaadi's 2013, with a spacer --> Change: 1.func.CalculateH 2.spacer properties.
 
 # In[1]:
@@ -253,10 +258,10 @@ def CalculateK_water(T, S):
 
 # In[12]:
 
-# Compute H 
-def CalculateH(width,height,k_liquid,rho,miu,V,Pr):
+# Compute H for feeding side
+def CalculateH_hotside(width,height,k_liquid,rho,miu,V,Pr):
     '''
-    This is used for compute H in the hotside or coldside channel.
+    This is used for compute H in the hotside channel.
     Params
     ----------
     k_liquid: (kJ/(m K hr)) thermal conductivity of hot or cold body.
@@ -275,15 +280,54 @@ def CalculateH(width,height,k_liquid,rho,miu,V,Pr):
     #dh = 4.*width*height/(width+height)/2
     Re = rho*dh*V/3600./miu # params of the body.
     Nu = 0.029*Ks*Re**.8*Pr**.33
-    '''
-    print "Ks: %r" %Ks
-    print "Nu: %r" %Nu
-    print "Re: %r" %Re
-    '''
+    
+    #print "Ks: %r" %Ks
+    #print "Nu: %r" %Nu
+    #print "Re: %r" %Re
+    
     return Nu*k_liquid/dh
 
 
 # In[13]:
+
+# Compute H for cooling side
+def CalculateH_coldside(width,height,length,k_liquid,rho,miu,V,Pr):
+    '''
+    This is used for compute H in the coldside channel.
+    Params
+    ----------
+    width,height,length: (m) The scale of the channel.
+    k_liquid: (kJ/(m K hr)) thermal conductivity of hot or cold body.
+    rho: (kg/m3) use different rho when compute hot and cold water.
+    miu: (kg/m/s)dynamic viscosity.
+    V: (m/hr) velocity of water.
+    Pr = niu/a = miu*Cp/K # varies a lot!
+    
+    Returns
+    ---------
+    H: (kJ/(m2 K hr))=(3600*kW/(m2 K)) heat transfer coefficient.
+    '''
+    _compute_h = "B"
+    if _compute_h == "A":
+        Ks = 1.904*(SPACER_df/SPACER_hs)**(-.039)*SPACER_epsilon**.75*np.sin((np.pi/4)**.086)
+        #Ks = 1.
+        dh = 4.*SPACER_epsilon*SPACER_df*SPACER_hs/(2*SPACER_df + 4*(1-SPACER_epsilon)*SPACER_hs)
+        #dh = 4.*width*height/(width+height)/2
+        Re = rho*dh*V/3600./miu # params of the body.
+        Nu = 0.029*Ks*Re**.8*Pr**.33
+    elif _compute_h == "B":
+        dh = 4.*width*height/(width+height)/2
+        Re = rho*dh*V/3600./miu # params of the body.
+        Nu = 1.62*(Re*Pr*dh/length)**.33
+    
+    #print "Ks: %r" %Ks
+    #print "Nu: %r" %Nu
+    #print "Re: %r" %Re
+    
+    return Nu*k_liquid/dh
+
+
+# In[14]:
 
 # Compute Pr
 def CalculatePr(miu,Cp,lambda_liquid):
@@ -318,7 +362,7 @@ def CalculatePr(miu,Cp,lambda_liquid):
     # return Pr 
 
 
-# In[14]:
+# In[15]:
 
 # Checking nominal Numbers
 def CheckNumber(name):
@@ -372,19 +416,19 @@ def CheckNumber(name):
         k_l = 0.638*3.6 #(W/(m K))
         width = 1.
         height = 1.
-        H = CalculateH(width,height,k_l,rho,miu,V,Pr)
+        H = CalculateH_hotside(width,height,k_l,rho,miu,V,Pr)
         print "H, for Heat Transfer a example: %r (kJ/(m2 K hr))= %r (W/(m2 K))" %(H,H/3.6) # Validated, but whether dh is right?
         print "miu: %r(Pa s)" %miu
     else:
         raise NameError("My Error! No such function. Please input a valid string!")
 
 
-# In[15]:
+# In[16]:
 
 CheckNumber('H')
 
 
-# In[16]:
+# In[17]:
 
 # Computation for Jv
 def ComputationForJv(d,delta_m,tau,Tave,Thm,Tf,air_gap_width):
@@ -399,7 +443,7 @@ def ComputationForJv(d,delta_m,tau,Tave,Thm,Tf,air_gap_width):
     return C,A,Phm,Pf
 
 
-# In[17]:
+# In[18]:
 
 # Computation for Q
 def ComputationForQ(width,height,mh,Thm,Tf,Thb,S_hot,K_hotwater):
@@ -410,25 +454,25 @@ def ComputationForQ(width,height,mh,Thm,Tf,Thb,S_hot,K_hotwater):
     hg = CalculateEnthalpy(.5*(Thm+Tf))
     miu_hot = Calculatemiu(Thb,S_hot)
     Pr_hot = CalculatePr(miu_hot,Cp_hot,K_hotwater)
-    Hh = CalculateH(width,height,K_hotwater,rho_hotwater,miu_hot,Vh,Pr_hot)
+    Hh = CalculateH_hotside(width,height,K_hotwater,rho_hotwater,miu_hot,Vh,Pr_hot)
     return hg,Hh
 
 
-# In[18]:
+# In[19]:
 
 # Computation for Tf
-def ComputationForTf(width,height,mc,Sc,Tcb,Tf):
+def ComputationForTf(width,height,length,mc,Sc,Tcb,Tf):
     '''For neat code.'''
     Vc = mc/rho_coldwater/(width*height)#(m/hr) average velocity of water
     miu_cold = Calculatemiu(Tcb,Sc)
     K_coldwater = CalculateK_water(Tcb,Sc)
     K_fallingwater = CalculateK_water(Tf,0)
     Pr_cold = CalculatePr(miu_cold,Cp_cold,K_coldwater)
-    Hc = CalculateH(width,height,K_coldwater,rho_coldwater,miu_cold,Vc,Pr_cold)
+    Hc = CalculateH_coldside(width,height,length,K_coldwater,rho_coldwater,miu_cold,Vc,Pr_cold)
     return Hc,K_fallingwater
 
 
-# In[19]:
+# In[20]:
 
 # Checking
 def Checking(Jv,delta_f,Q,Tf,temp):
@@ -445,7 +489,7 @@ def Checking(Jv,delta_f,Q,Tf,temp):
     print "The criterion value is: %r " %temp
 
 
-# In[28]:
+# In[54]:
 
 class AGMD:
     '''Using for computing AGMD process. Single input and equal output.'''
@@ -516,8 +560,8 @@ class AGMD:
         self.Tf = np.ones(Nx) # The T of condensing film interface.
         self.Thm = np.ones(Nx) # The T of the interface of hotfeed and membrane.
         self.Tma = np.ones(Nx) # The T of the surface of membrane facing the air channel.
-        #Tfw = np.ones(Nx) # The T of film water in contact with cooling plate.
-        #Tcw = np.ones(Nx) # The T of the wall in cooling channel.
+        self.Tfp = np.ones(Nx) # The T of film water in contact with cooling plate.
+        self.Tpc = np.ones(Nx) # The T of the wall in cooling channel.
         self.mh = np.ones(Nx)*self.mass_hot_inlet # mass flow of hot water at every grid.
         self.S_hot = np.ones(Nx)*self.salinity_hot_inlet # salinity of hot water.
         ## store output values wanted to show.
@@ -584,9 +628,11 @@ class AGMD:
                 delta_f = (3.*Jv/3600*miu_f/(rho_l*(rho_l - rho_av)*G)*self.x[i])**(1./3) 
                 #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
 
-                Hc,Kf = ComputationForTf(self.width_effective,self.height_channel,                                         self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
+                Hc,Kf = ComputationForTf(self.width_effective,self.height_channel,self.length_vertical_effective/(Nx-1),                                         self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
                 Tf_temp = Q*(delta_f/Kf+self.delta_c/self.Kw+1./Hc) + self.Tcb[i] 
                 # Kw,delta_c/f are Const. Hc,Kf needs computed. T depends on grid.
+                self.Tfp[i] = self.Tf[i] - Q*delta_f/Kf
+                self.Tpc[i] = self.Tfp[i] - Q*self.delta_c/self.Kw
 
                 error_Tf = abs(Tf_temp - self.Tf[i])
                 self.Tf[i] = Tf_temp
@@ -694,14 +740,15 @@ class AGMD:
                     delta_f = (3.*Jv/3600*miu_f/(rho_l*(rho_l - rho_av)*G)*self.x[i])**(1./3) 
                     #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
 
-                    Hc,Kf = ComputationForTf(self.width_effective,self.height_channel,
-                                             self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
+                    Hc,Kf = ComputationForTf(self.width_effective,self.height_channel,self.length_vertical_effective/(Nx-1),                                             self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
                     Tf_temp = Q*(delta_f/Kf+self.delta_c/self.Kw+1./Hc) + self.Tcb[i] 
                     # Kw,delta_c/f are Const. Hc,Kf needs computed. T depends on grid.
 
                     error_Tf = abs(Tf_temp - self.Tf[i])
                     self.Tf[i] = Tf_temp
                     self.Tma[i] = (Kab/self.delta_a*self.Tf[i] + K/self.delta_m*self.Thm[i])/(Kab/self.delta_a + K/self.delta_m)
+                    self.Tfp[i] = self.Tf[i] - Q*delta_f/Kf
+                    self.Tpc[i] = self.Tfp[i] - Q*self.delta_c/self.Kw
                     # Checking 
                     #Checking(Jv,delta_f,Q,Tf[i],"Tf[i]")
 
@@ -750,7 +797,7 @@ class AGMD:
         print "Average of sum(flux)/Nx: %.2f " %(sum(self.Jv_flux_condensed_water_along)/Nx)
 
 
-# In[21]:
+# In[22]:
 
 def plot_along_membrane(plot_title,plot_ylabel,x_values,y_values,y_limits):
     '''
@@ -779,7 +826,7 @@ def plot_along_membrane(plot_title,plot_ylabel,x_values,y_values,y_limits):
     pyplot.plot(x_values,y_values,color='#003366',ls='-')
 
 
-# In[22]:
+# In[23]:
 
 def plot_temperature(plot_title,plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,plot_ylabel5,                     x_values,y_values1,y_values2,y_values3,y_values4,y_values5,y_limits):
     '''
@@ -814,188 +861,296 @@ def plot_temperature(plot_title,plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylab
     pyplot.legend((plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,plot_ylabel5))
 
 
-# In[23]:
+# In[24]:
 
-help(AGMD)
+def plot_muliti_along(plot_title,_list_labels,                     x_values,_list_values,y_label,y_limits):
+    '''
+    Pyplot to show multi-various along the membrane. The 3rd([2]) position is for Tf or Rfp etc..
+    ---------------
+    Params
+    ------
+    plot_title,plot_ylabel_N: strings, to describe Title and Y-Label of the fig plotted.
+    x_values: x along the membrane. 1-D array of floats.
+    y_values_N: (C) Temperature along the membrane. 1-D array of floats.
+    y_label: a string for y axis.
+    y_limits: 1-D array with 2 elements which defines the lower/upper boundary of the plot y-value
+                i.e. y_limits = [lowerbound, upperbound]
+                if no concerns for boundary, input y_limits = "no boundary" instead.
+    '''
+    
+    pyplot.figure(figsize=(10,5))
+    pyplot.title(plot_title);
+    pyplot.xlabel('x(m)');
+    pyplot.ylabel(y_label);
+    if type(y_limits) == str:
+        print "No specific restrict boundary."
+    elif type(y_limits) == list:
+        y_max = y_limits[1]
+        y_min = y_limits[0]
+        pyplot.ylim(y_min,y_max)
+    else : 
+        raise NameError("MyError! y_limits input is wrong.")
+    #pyplot.scatter(x_values,y_values,marker='^')
+    n_arrays = len(_list_values)
+    for i_array in range(n_arrays):
+        if i_array == 3: pyplot.plot(x_values,_list_values[i_array], ls='-.')
+        else: pyplot.plot(x_values,_list_values[i_array])
+    #pyplot.plot(x_values,y_values1,color='#003366')
+    #pyplot.plot(x_values,y_values2)
+    #pyplot.plot(x_values,y_values3,ls='-.')
+    #pyplot.scatter(x_values,y_values3)
+    #pyplot.plot(x_values,y_values4)
+    #pyplot.plot(x_values,y_values5)
+    #pyplot.plot(x_values,y_values6)
+    #pyplot.legend((plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,plot_ylabel5,plot_ylabel6))
+    pyplot.legend(_list_labels)
 
 
-# In[32]:
+# In[25]:
 
-test_alsaadi = AGMD(_L=10.,_W=.05,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=40.*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=1.5*60,_mci=1.5*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+def plot_flux_vs_X(plot_title,plot_ylabel,y_labels,plot_xlabel,x_values,y_values,y_limits):
+    '''
+    Pyplot to show varying Jv(flux of condensed water on the cooling plate) depends on other parameters(velocity,airgap,length).
+    ------
+    Params
+    ------
+    plot_title,plot_ylabel,plot_xlabel: strings, to describe Title and Y-Label of the fig plotted.
+    y_labels: name strings of plot y_values.
+    x_values: 1-D array of floats.
+    y_values: n-D array of floats.
+    y_limits: 1-D array with 2 elements which defines the lower/upper boundary of the plot y-value
+                i.e. y_limits = [lowerbound, upperbound]
+                if no concerns for boundary, input y_limits = "no boundary" instead.
+    '''
+    pyplot.figure(figsize=(10,5))
+    pyplot.title(plot_title);
+    pyplot.xlabel(plot_xlabel);
+    pyplot.ylabel(plot_ylabel);
+    if type(y_limits) == str:
+        print "No specific restrict boundary."
+    elif type(y_limits) == list:
+        y_max = y_limits[1]
+        y_min = y_limits[0]
+        pyplot.ylim(y_min,y_max)
+    else : 
+        raise NameError("My Error. y_limits input is wrong.")
+    n = len(y_values)
+    if n == len(x_values):
+        pyplot.scatter(x_values,y_values,marker='^')
+        pyplot.plot(x_values,y_values,color='#003366',ls='-')
+    else:
+        for i in range(n):
+            #pyplot.scatter(x_values,y_values[i],marker='^')
+            pyplot.plot(x_values,y_values[i])
+        pyplot.legend(y_labels)
+
+
+# In[48]:
+
+def resistance_heat_transfer(T1,T2,Thb,Tcb,heat_transfer):
+    '''
+    This func is used to compute heat transfer resistance in every grid horizontally.
+    -------
+    Params
+    ------
+    T1,T2: (C) The former is higher than the latter.
+    Thb, Tcb: (C) The max and the minimize temperature(in flow water).
+    heat_transfer: (kJ/m2/hr) the permeating water flux.
+    
+    Returns
+    ------
+    resistance: The heat transfer resistance in each domain.
+    relative_resistance: The relative one. relative_resistance=resistance/Sigma(resistance)
+    '''
+    delta_T = T1 - T2
+    delta_Ttotal = Thb - Tcb
+    resistance = delta_T/heat_transfer
+    relative_resistance = delta_T/delta_Ttotal
+    return resistance,relative_resistance
+
+
+# In[27]:
+
+def compute_heat_resistance(_instance):
+    '''
+    use func. resistance_heat_transfer to compute heat resistance along membrane.
+    ------
+    Returns
+    -------
+    Two 3D numpy array, contains heat resistance:af,fp,pw,wb, the former[0] is R, the latter[1] is relatives.
+    The order of Rs is: Raf(air gap),Rfp(falling liquid water),Rpw(the cooling plate),Rwb(1/H, fluid heat transfer resistance in channel).
+    '''
+    T_test_list = np.array((_instance.Thb,_instance.Thm,_instance.Tma,_instance.Tf,_instance.Tfp,_instance.Tpc,_instance.Tcb))
+    R_heat_list = resistance_heat_transfer(T_test_list[:-1],T_test_list[1:],_instance.Thb,_instance.Tcb,_instance.Q_heattransfer_along)
+    #print R_heat_list[1][1] # A 3D numpy array, contains heat resistance:af,fp,pw,wb, the former is R, the latter is relatives[1].
+    #R_mass_list = resistance_mass_transfer(T_test_list[:-1],T_test_list[1:],_instance.Tha,_instance.Tcb,_instance.Jv_flux_condensed_water_along)
+    #print R_mass_list # A 3D numpy array, contains mass resistance:af[0],fp[1],pw[2],wb[3], the former[0] is R, the latter is relatives.
+    #sum(R_heat_list[1])
+    return R_heat_list
+
+
+# In[55]:
+
+# Comparasion on airgap of the model
+airgap_Nvalues = np.array([2.0e-3,2.5e-3,3e-3,4e-3,5e-3]) # m
+Jv_varies_airgap = np.zeros(len(airgap_Nvalues))
+R_heat_r_airgap = np.zeros((6,len(airgap_Nvalues)))
+R_heat_airgap = np.zeros((6,len(airgap_Nvalues)))
+Nx = 20
+for test_i,airgap_of_model in enumerate(airgap_Nvalues):
+    print "The airgap of the model is: %.5f m" %airgap_of_model
+    #compare_airgap = exp_condition(_vhi=.1,_vci=.1,_airgap=airgap_of_model,_length=1.,Nx=20)
+    compare_airgap = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=airgap_of_model,_delta_c=0.1e-3,_Kw=0.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20.,_shi=42.,_sc=0.)
+    compare_airgap.get_mesh_setup(Nx)
+    compare_airgap.get_co_current(Nx);
+    # relative resistance below
+    R_heat_temp = compute_heat_resistance(compare_airgap)
+    R_heat_r_airgap[0,test_i] = sum(R_heat_temp[1][0])/20
+    R_heat_r_airgap[1,test_i] = sum(R_heat_temp[1][1])/20
+    R_heat_r_airgap[2,test_i] = sum(R_heat_temp[1][2])/20
+    R_heat_r_airgap[4,test_i] = sum(R_heat_temp[1][4])/20
+    R_heat_r_airgap[5,test_i] = sum(R_heat_temp[1][5])/20
+    # resistance below
+    R_heat_temp = compute_heat_resistance(compare_airgap)
+    R_heat_airgap[0,test_i] = sum(R_heat_temp[0][0])/20
+    R_heat_airgap[1,test_i] = sum(R_heat_temp[0][1])/20
+    R_heat_airgap[2,test_i] = sum(R_heat_temp[0][2])/20
+    R_heat_airgap[4,test_i] = sum(R_heat_temp[0][4])/20
+    R_heat_airgap[5,test_i] = sum(R_heat_temp[0][5])/20
+    print
+    print
+
+print R_heat_r_airgap
+
+
+# In[52]:
+
+print compare_airgap.Tf
+compare_airgap.Tfp
+
+
+# In[56]:
+
+compare_airgap.Q_heattransfer_along
+
+
+# In[59]:
+
+R_labels = ["Rh","Rm","Ra","Rfp","Rp","Rc"]
+plot_flux_vs_X('R_relative vs. air gap distance, when V_feeding=0.1m/s,V_cooling=0.1m/s,len=1m','R heat relative',               R_labels,'air gap distance (m)',airgap_Nvalues,R_heat_r_airgap,'no')
+plot_flux_vs_X('R_relative vs. air gap distance, when V_feeding=0.1m/s,V_cooling=0.1m/s,len=1m','R heat',               R_labels,'air gap distance (m)',airgap_Nvalues,R_heat_airgap,'no')
+
+
+# # AGMD PE作冷壁
+# ## air gap 2mm
+# AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=2e-3,_delta_c=.25e-3,_Kw=.4*3.6,\
+#                     _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+
+# In[30]:
+
+test_alsaadi = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=2e-3,_delta_c=.25e-3,_Kw=.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
 Nx = 20
 test_alsaadi.get_mesh_setup(Nx)
 test_alsaadi.get_counter_current(Nx)
 
 
-# In[25]:
-
-def post_checking(check_instance):
-    print "mh: %r" %(check_instance.mh)
-    print "S_hot: %r g/kg" %(check_instance.S_hot)
-    print "Thb along the membrane %r C" %check_instance.Thb
-    print "Thm along the membrane %r C" %check_instance.Thm
-    print "Tma along the membrane %r C" %check_instance.Tma
-    print "Tf along the membrane %r C" %check_instance.Tf
-    print "Tcb along the membrane %r C" %check_instance.Tcb
-    print "Jv along the length: %r (kg/(m2 hr))" %check_instance.Jv_flux_condensed_water_along
-    print "Q_heat transfer along the length: %r (kJ/m2/hr)" %check_instance.Q_heattransfer_along
-    print "delta_f along the length: %r (m)" %check_instance.delta_f_condensed_water_along
-post_checking(test_alsaadi)
-
-
-# In[36]:
-
-Jv_exp_fig8 = np.array([0.45,1.04,1.84,3.40,5.93])
-print Jv_exp_fig8[np.argsort(-Jv_exp_fig8)]
-np.argsort(-Jv_exp_fig8)
-
-
-# In[69]:
-
-# For testing Alsaadi fig.8
-Nx = 20
-Temperature_hot_inlet = np.array([80,70,60,50,40]) # C
-Jv_exp_fig8 = np.array([0.45,1.04,1.84,3.40,5.93])
-Jv_exp_fig8_re = Jv_exp_fig8[np.argsort(-Jv_exp_fig8)]
-Jv_simulate_N = np.zeros(len(Temperature_hot_inlet))
-L1_norm = []
-for T_i,thi_N in enumerate(Temperature_hot_inlet):
-    verify_fig8 = AGMD(_L=.1,_W=.05,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=40.*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=1.5*60,_mci=1.5*60,_thi=thi_N,_tci=20,_shi=42.,_sc=0.)
-    verify_fig8.get_mesh_setup(Nx)
-    verify_fig8.get_co_current(Nx);
-    Jv_simulate_N[T_i] = sum(verify_fig8.Jv_flux_condensed_water_along)/Nx
-    L1_norm.append((Jv_simulate_N[T_i] - Jv_exp_fig8_re[T_i])/Jv_exp_fig8_re[T_i])
-print "Single error: L1-norm: %r " %L1_norm
-L2_norm = sum(((Jv_simulate_N - Jv_exp_fig8_re)/Jv_exp_fig8_re)**2)**(.5)
-print "Total L2-norm: %r " %L2_norm
-
-
-# In[73]:
-
-# For testing Alsaadi air gap fig9.
-Nx = 20
-delta_a_Nvalues = np.array([0.005,0.009,0.013]) # m
-TEST = [] # List to store class-instance
-Jv_delta_aN = np.zeros(len(delta_a_Nvalues))
-Jv_exp_fig9 = np.array([3.17,1.83,1.53])
-L1_norm = []
-for test_i,airgap_distance in enumerate(delta_a_Nvalues):
-    ex_airgap = AGMD(_L=.1,_W=.05,_H=2e-3,_delta_a=airgap_distance,_delta_c=.25e-3,_Kw=40.*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=1.5*60,_mci=1.5*60,_thi=60.,_tci=20.,_shi=42.,_sc=0.)
-    ex_airgap.get_mesh_setup(Nx)
-    ex_airgap.get_co_current(Nx);
-    Jv_delta_aN[test_i] = sum(ex_airgap.Jv_flux_condensed_water_along)/Nx #Jv (average along membrane) for each instance
-    #TEST.append(ex_airgap)
-    #print test_i,TEST[test_i].Thm
-    L1_norm.append((Jv_delta_aN[test_i] - Jv_exp_fig9[test_i])/Jv_exp_fig9[test_i])
-print "Single error: L1-norm: %r " %L1_norm
-#print Jv_varies_delta_a
-
-
-# In[75]:
-
-# For plot Jv versus delta_a. See fig10, Banat 1998
-# Reuse plot(not for membrane along)
-plot_along_membrane(plot_title="Exam Jv vs. delta_a",plot_ylabel="J v_ave(kg/m2 hr)",x_values=delta_a_Nvalues,                    y_values=Jv_delta_aN,y_limits=[1.,3.])
-
-
-# In[76]:
-
-# For testing Alsaadi fig.10
-Nx = 20
-Temperature_hot_inlet = np.array([80,70,60,50,40]) # C
-Jv_exp_fig10 = np.array([0.55,1.10,2.07,3.17,6.59])
-Jv_exp_fig10_re = Jv_exp_fig8[np.argsort(-Jv_exp_fig8)]
-Jv_simulate_N = np.zeros(len(Temperature_hot_inlet))
-L1_norm = []
-for T_i,thi_N in enumerate(Temperature_hot_inlet):
-    verify_fig10 = AGMD(_L=.1,_W=.05,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=40.*3.6,                    _d=.45e-6,_delta_m=100e-6,_tau=1.5,_mhi=1.5*60,_mci=1.5*60,_thi=thi_N,_tci=20,_shi=42.,_sc=0.)
-    verify_fig10.get_mesh_setup(Nx)
-    verify_fig10.get_co_current(Nx);
-    Jv_simulate_N[T_i] = sum(verify_fig10.Jv_flux_condensed_water_along)/Nx
-    L1_norm.append((Jv_simulate_N[T_i] - Jv_exp_fig10_re[T_i])/Jv_exp_fig10_re[T_i])
-print "Single error: L1-norm: %r " %L1_norm
-L2_norm = sum(((Jv_simulate_N - Jv_exp_fig10_re)/Jv_exp_fig10_re)**2)**(.5)
-print "Total L2-norm: %r " %L2_norm
-
-
-# Following are plotting for Alsaadi test.
-
-# In[26]:
-
-plot_along_membrane(plot_title="Test_Alsaadi",plot_ylabel="Jv_along(kg/m2 hr)",x_values=test_alsaadi.x,                    y_values=test_alsaadi.Jv_flux_condensed_water_along ,y_limits="no")
-
-
-# In[27]:
-
-plot_along_membrane(plot_title="Test1",plot_ylabel="deltaf_along(m)",x_values=test_alsaadi.x,                    y_values=test_alsaadi.delta_f_condensed_water_along ,y_limits=[0.,1e-4])
-
-
-# In[28]:
-
-print test_alsaadi.delta_f_condensed_water_along
-
-
-# In[29]:
+# In[ ]:
 
 plot_along_membrane(plot_title="Test1",plot_ylabel="Q(kJ/m2 hr)",x_values=test_alsaadi.x,                    y_values=test_alsaadi.Q_heattransfer_along ,y_limits="no")
 
 
-# In[77]:
+# In[ ]:
 
-help(plot_temperature)
+print test_alsaadi.Tfp
+test_alsaadi.Tpc
 
+
+# In[ ]:
+
+T_list_labels = ["Thb","Thm",'Tma',"Tf","Tfp","Tpc","Tcb"]
+T_list_values = [test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tfp,test_alsaadi.Tpc,test_alsaadi.Tcb]
+plot_muliti_along("Temperature along AGMD",T_list_labels,test_alsaadi.x,                    T_list_values,'Temperature',[10,85])
+
+
+# In[ ]:
+
+# for CalculateH_coldside "B" ways
+test_alsaadi = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=2e-3,_delta_c=.25e-3,_Kw=.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+Nx = 20
+test_alsaadi.get_mesh_setup(Nx)
+test_alsaadi.get_counter_current(Nx)
+
+
+# In[ ]:
+
+T_list_labels = ["Thb","Thm",'Tma',"Tf","Tfp","Tpc","Tcb"]
+T_list_values = [test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tfp,test_alsaadi.Tpc,test_alsaadi.Tcb]
+plot_muliti_along("Temperature along AGMD",T_list_labels,test_alsaadi.x,                    T_list_values,'Temperature',[10,85])
+
+
+# # 4mm air gap
+# AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=4e-3,_delta_c=.25e-3,_Kw=.4*3.6,\
+#                     _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
 
 # In[31]:
 
+test_alsaadi = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=4e-3,_delta_c=.25e-3,_Kw=.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+Nx = 20
+test_alsaadi.get_mesh_setup(Nx)
+test_alsaadi.get_counter_current(Nx)
+
+
+# In[ ]:
+
+test_alsaadi = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=4e-3,_delta_c=.25e-3,_Kw=.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+Nx = 20
+test_alsaadi.get_mesh_setup(Nx)
+test_alsaadi.get_counter_current(Nx)
+
+
+# In[ ]:
+
+T_list_labels = ["Thb","Thm",'Tma',"Tf","Tfp","Tpc","Tcb"]
+T_list_values = [test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tfp,test_alsaadi.Tpc,test_alsaadi.Tcb]
+plot_muliti_along("Temperature along AGMD",T_list_labels,test_alsaadi.x,                    T_list_values,'Temperature',[10,85])
+
+
+# # 9mm air gap
+#  AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=.4*3.6,\
+#                     _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+
+# In[32]:
+
+test_alsaadi = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+Nx = 20
+test_alsaadi.get_mesh_setup(Nx)
+test_alsaadi.get_counter_current(Nx)
+
+
+# In[ ]:
+
+T_list_labels = ["Thb","Thm",'Tma',"Tf","Tfp","Tpc","Tcb"]
+T_list_values = [test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tfp,test_alsaadi.Tpc,test_alsaadi.Tcb]
+plot_muliti_along("Temperature along AGMD",T_list_labels,test_alsaadi.x,                    T_list_values,'Temperature',[10,85])
+
+
+# In[ ]:
+
+# for CalculateH_coldside "B" ways
+test_alsaadi = AGMD(_L=1.,_W=1.,_H=2e-3,_delta_a=9e-3,_delta_c=.25e-3,_Kw=.4*3.6,                    _d=.2e-6,_delta_m=100e-6,_tau=1.5,_mhi=11.76*60,_mci=8.94*60,_thi=80.,_tci=20,_shi=42.,_sc=0.)
+Nx = 20
+test_alsaadi.get_mesh_setup(Nx)
+test_alsaadi.get_counter_current(Nx)
+
+
+# In[ ]:
+
+T_list_labels = ["Thb","Thm",'Tma',"Tf","Tfp","Tpc","Tcb"]
+T_list_values = [test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tfp,test_alsaadi.Tpc,test_alsaadi.Tcb]
+plot_muliti_along("Temperature along AGMD",T_list_labels,test_alsaadi.x,                    T_list_values,'Temperature',[10,85])
+
+
+# In[ ]:
+
 plot_temperature("Test1","Thb","Thm","Tma","Tf","Tcb",test_alsaadi.x,                    test_alsaadi.Thb,test_alsaadi.Thm,test_alsaadi.Tma,test_alsaadi.Tf,test_alsaadi.Tcb,[19.5,80.5])
-
-
-# In[ ]:
-
-print 
-
-
-# In[ ]:
-
-a = [1,2]
-def test_func_variables(a):
-    if type(a) == str:
-        print "a is a string."
-    elif type(a)==int:
-        print "a + 1 = %r " %(a+1)
-    elif type(a) == list:
-        print a[0],a[1]
-    print "a is : %r." %a
-
-
-# In[ ]:
-
-test_func_variables([1,2])
-
-
-# In[ ]:
-
-b =1
-type(b)
-
-
-# In[ ]:
-
-# pyplot to show T, mh, Jv, delta_f along the membrane
-x = np.linspace(0,10,5)
-y_values = [10,20,5,30,45]
-plot_title = 'delta_f along'
-plot_ylabel = "T hb"
-pyplot.figure(figsize=(10,5))
-pyplot.title(plot_title);
-pyplot.xlabel('x(m)');
-pyplot.ylabel(plot_ylabel);
-#pyplot.ylim(0.0,1.0e-4)
-pyplot.scatter(x,y_values,marker='^')
-pyplot.plot(x,y_values,color='#003366',ls='-')
-
-
-# In[ ]:
-
-# pyplot to show Jv varies attributed to T(inlet)
 
