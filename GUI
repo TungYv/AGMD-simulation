@@ -1,0 +1,179 @@
+# This is the 1st AGD work of GUI.
+# For testing if program works.
+# Next step: matplotlib. output.
+
+import sys
+from PyQt4 import QtCore, QtGui, uic
+import numpy as np
+from matplotlib import pyplot
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
+import myAGD
+
+qtCreatorFile = "c:/Users/Thinkpad/Desktop/AGD-GUI/frame-work.ui" # Enter file here.
+
+Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
+
+class MyApp(QtGui.QMainWindow, Ui_MainWindow):
+    def __init__(self):
+        QtGui.QMainWindow.__init__(self)
+        Ui_MainWindow.__init__(self)
+        self.setupUi(self)
+        # Followings are to be changed.
+        self.createLayout()
+        self.boost_button.clicked.connect(self.boost_AGD)
+        self.plot_button.clicked.connect(self.canvas_plot)
+        self.pushButton_2.clicked.connect(self.close)
+        # load an image
+        # exhibit_graphic()
+    
+    def exhibit_graphic(self, loaded_image):
+        '''
+        This func. is to exhibit an image.
+        Process: get a pic., then analyse it and add it to the 'scene' already created, finally show out.
+        '''
+        self.scene = QtGui.QGraphicsScene(self) # create a 'scene' to receive 'myIamge'
+        image_item = QtGui.QGraphicsPixmapItem(loaded_image)
+        self.scene.addItem(image_item)
+        self.mygraphic.setScene(self.scene) # add 'loaded_image' to 'mygraphic'.
+        
+    def createLayout(self):
+        '''
+        This function is used for put drawn-figure into the part of Qframe in GUI.
+        '''
+        # set layouts contains figures.
+        self.figure = pyplot.figure() # create a figure instance to plot on. The figure for myframe_T.
+        self.figure2,self.fig2_host = pyplot.subplots() # a figure for myframe_Jv, and 'fig2_host' equals to "ax"
+        pyplot.subplots_adjust(right=0.75) # figure2 leans on the right of the 'myframe_Jv'
+        self.canvas = FigureCanvasQTAgg(self.figure) # This canvas widget plot the figure
+        self.canvas2 = FigureCanvasQTAgg(self.figure2) 
+        layout = QtGui.QVBoxLayout(self.myframe_T) # self.myframe_T is the 'frame' in .ui.
+        layout2 = QtGui.QVBoxLayout(self.myframe_Jv) # self.myframe_Jv is the 'frame' in .ui.
+        layout.setContentsMargins(0,0,0,0) # set margin. not indispensable.
+        layout2.setContentsMargins(10,0,10,0) # set margin. not indispensable.
+        layout.addWidget(self.canvas) # add the canvas to 'myframe_T'
+        layout2.addWidget(self.canvas2) # add the canvas to 'myframe_Jv'
+        
+        # set tool bars of figures.
+        toolbar = NavigationToolbar(self.canvas,self)
+        toolbar2 = NavigationToolbar(self.canvas2,self)
+        layout.addWidget(toolbar) # adopts QVBoxLayout(vertically), so canvas is above the toolbar.
+        layout2.addWidget(toolbar2)
+        
+    
+    def canvas_plot(self):
+        '''
+        Plot the results using functions in module 'myAGD'.
+        '''
+        self.plot_multi_along("Temperatures along Model ",self.T_list_labels,self._instance.x,\
+                     self.T_list_values,'Temperature (C)','')
+        self.plot_parasite_axis(self._instance.Jv_flux_condensed_water_along,self._instance.Q_heattransfer_along,\
+                                self._instance.delta_f_condensed_water_along)
+        self.canvas.draw()
+        self.canvas2.draw()
+        #ax.hold(True) # not indispensable.
+    
+    def plot_parasite_axis(self,_Jv,_Q,_delta_f):
+        '''
+        Use pyplot.subplots() as a self.figure, get host, use host to generate 2 parasite axes,\
+        Then use host.plot(), after that, return to canvas_plot to canvas.draw.
+        This function is used to plot 3 figures(Jv,Q,delta_f) in one plot.
+        Params
+        ------
+        _Jv,_Q,_delta_f: they are in the _instance.
+        '''
+        Font  = {'family':'Tahoma', 'size':12}
+        # create parasite axes
+        host = self.fig2_host
+        Q_part = host.twinx()
+        delta_f_part = host.twinx()
+        
+        # offset the parasite axes
+        delta_f_part.spines["right"].set_position(("axes",1.2))
+        
+        # plot
+        l1, = host.plot(_Jv,color='b',label='Flux')
+        l2, = Q_part.plot(_Q/1e3,color='r',label='Heat transfer')
+        l3, = delta_f_part.plot(_delta_f*1e3,color='g',label='$\Delta$ condensate') 
+        
+        # set label
+        host.set_title("Flux,Heat transfer and $\Delta$ condensate vs. x")
+        host.set_xlabel("x along the model (m)",fontdict=Font)
+        host.set_ylabel("Flux (kg/m/hr)",fontdict=Font)
+        Q_part.set_ylabel("Heat transfer (1.0e-3*kJ/m/hr)",fontdict=Font)
+        delta_f_part.set_ylabel("$\Delta$ condensate (mm)",fontdict=Font)
+        
+        lines = [l1,l2,l3]
+        host.legend(lines,[l.get_label() for l in lines],prop={'size':10})
+        
+    def plot_multi_along(self,plot_title,_list_labels,\
+                        x_values,_list_values,y_label,y_limits):
+        '''
+        Use self.figure got from createLayout(Func.), ax to plot data, and then be used by
+        canvas_plot(Func.) to draw on the Widget.
+        This is plot Temperatures along membrane.
+        --------------
+        plot_title,plot_ylabel_N: strings, to describe Title and Y-Label of the fig plotted.
+        x_values: x along the membrane. 1-D array of floats.
+        y_values_N: (C) Temperature along the membrane. 1-D array of floats.
+        y_label: a string for y axis.
+        y_limits: 1-D array with 2 elements which defines the lower/upper boundary of the plot y-value
+                i.e. y_limits = [lowerbound, upperbound]
+                if no concerns for boundary, input y_limits = "no boundary" instead.
+        '''
+        Font  = {'family':'Tahoma','size':10}
+        ax = self.figure.add_subplot(111) # an instance carries the data for plotting.
+        ax.clear()
+        n_arrays = len(_list_labels)
+        # ax.plot()
+        for i_array in range(n_arrays):
+            if i_array == 2: ax.plot(x_values,_list_values[i_array], ls='-.')
+            else: ax.plot(x_values,_list_values[i_array])
+        ax.set_title(plot_title)
+        ax.set_xlabel("x along the model (m)", fontdict=Font)
+        ax.set_ylabel(y_label, fontdict=Font)
+        if type(y_limits) == str:
+            print "No specific restrict boundary."
+        elif type(y_limits) == list:
+            y_max = y_limits[1]
+            y_min = y_limits[0]
+            ax.set_ylim(y_min,y_max)
+        else : 
+            raise NameError("MyError! y_limits input is wrong.")
+        ax.grid(True)
+        ax.legend(_list_labels,bbox_to_anchor=(0.95,0.95),prop={'size':8})
+        
+    
+    def text_display(self):
+        '''
+        This function is only to display text in GUI.
+        '''
+        self.output_line.setText(str(self._instance.Jv_flux_average))
+        
+    def boost_AGD(self):
+        '''
+        To start myAGD module via push the button.
+        '''
+        input_length = float(self.length_line.text())
+        input_width = float(self.width_line.text())
+        # input..
+        input_Nx = int(self.Nx_spinBox.value())
+        # _test = myAGD.exp_conditionX(_vhi=0.1,_vci=0.1,_airgap=2e-3,_length=1.,Nx=20)
+        self._instance = myAGD.AG_D(_L=input_length,_W=input_width,_hfc=2e-3,_hcc=2e-3,_delta_a=4e-3,_delta_c=0.1e-3,_Kw=0.4*3.6,_mhi=5.5*60,_mci=5.5*60,_thi=80,_tci=20,_shi=42.,_sc=42.)
+        self._instance.get_mesh_setup(input_Nx)
+        self._instance.get_counter_current(input_Nx)
+        
+        self.T_list_labels = ["Thb","Tha","Tf","Tfp","Tpc","Tcb"]
+        self.T_list_values = [self._instance.Thb,self._instance.Tha,\
+                        self._instance.Tf,self._instance.Tfp,self._instance.Tpc,self._instance.Tcb]
+        # text_display
+        self.text_display()
+
+    
+if __name__ == "__main__":
+    app = QtGui.QApplication(sys.argv)
+    window = MyApp()
+    myImage = QtGui.QPixmap('resources/Ding.JPG') #load '.jpg'
+    window.exhibit_graphic(myImage)
+    window.show()
+    sys.exit(app.exec_())
