@@ -9,8 +9,8 @@ from matplotlib import pyplot
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 import myAGD
-
-qtCreatorFile = "c:/Users/Thinkpad/Desktop/AGD-GUI/frame-work.ui" # Enter file here.
+    
+qtCreatorFile = "C:\\AGD\\resources\\frame-work.ui" # Enter file here.
 
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
@@ -104,7 +104,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         delta_f_part.set_ylabel("$\Delta$ condensate (mm)",fontdict=Font)
         
         lines = [l1,l2,l3]
-        host.legend(lines,[l.get_label() for l in lines],prop={'size':10})
+        host.legend(lines,[l.get_label() for l in lines],prop={'size':10}) # get from the web.
         
     def plot_multi_along(self,plot_title,_list_labels,\
                         x_values,_list_values,y_label,y_limits):
@@ -169,11 +169,10 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         # text_display
         self.text_display()
 
-    
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     window = MyApp()
-    myImage = QtGui.QPixmap('resources/Ding.JPG') #load '.jpg'
+    myImage = QtGui.QPixmap('C:\\AGD\\resources\\Ding.jpg') #load '.jpg'
     window.exhibit_graphic(myImage)
     window.show()
     sys.exit(app.exec_())
