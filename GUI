@@ -1,6 +1,5 @@
-# This is the 1st AGD work of GUI.
+# This is the AGD work of GUI. The fundamental test.
 # For testing if program works.
-# Next step: matplotlib. output.
 
 import sys
 from PyQt4 import QtCore, QtGui, uic
@@ -9,8 +8,8 @@ from matplotlib import pyplot
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QTAgg as NavigationToolbar
 import myAGD
-    
-qtCreatorFile = "C:\\AGD\\resources\\frame-work.ui" # Enter file here.
+
+qtCreatorFile = "c:/Users/Thinkpad/Desktop/AGD-GUI/frame-work2.ui" # Enter file here.
 
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile)
 
@@ -24,8 +23,11 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.boost_button.clicked.connect(self.boost_AGD)
         self.plot_button.clicked.connect(self.canvas_plot)
         self.pushButton_2.clicked.connect(self.close)
-        # load an image
-        # exhibit_graphic()
+        self.export_button.clicked.connect(self.text_export_single)
+        self.boost_button_2.clicked.connect(self.boost_AGD_multiple)
+        self.plot_button_2.clicked.connect(self.canvas_plot2)
+        self.export_button_2.clicked.connect(self.text_export_multi)
+        
     
     def exhibit_graphic(self, loaded_image):
         '''
@@ -41,7 +43,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         '''
         This function is used for put drawn-figure into the part of Qframe in GUI.
         '''
-        # set layouts contains figures.
+        # The followings are layouts for single-test.
+        ## set layouts contains figures.
         self.figure = pyplot.figure() # create a figure instance to plot on. The figure for myframe_T.
         self.figure2,self.fig2_host = pyplot.subplots() # a figure for myframe_Jv, and 'fig2_host' equals to "ax"
         pyplot.subplots_adjust(right=0.75) # figure2 leans on the right of the 'myframe_Jv'
@@ -49,29 +52,65 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.canvas2 = FigureCanvasQTAgg(self.figure2) 
         layout = QtGui.QVBoxLayout(self.myframe_T) # self.myframe_T is the 'frame' in .ui.
         layout2 = QtGui.QVBoxLayout(self.myframe_Jv) # self.myframe_Jv is the 'frame' in .ui.
-        layout.setContentsMargins(0,0,0,0) # set margin. not indispensable.
+        layout.setContentsMargins(0,0,0,0) # set margin(left,top,right,bottom). not indispensable.
         layout2.setContentsMargins(10,0,10,0) # set margin. not indispensable.
         layout.addWidget(self.canvas) # add the canvas to 'myframe_T'
         layout2.addWidget(self.canvas2) # add the canvas to 'myframe_Jv'
         
-        # set tool bars of figures.
+        ## set tool bars of figures.
         toolbar = NavigationToolbar(self.canvas,self)
         toolbar2 = NavigationToolbar(self.canvas2,self)
         layout.addWidget(toolbar) # adopts QVBoxLayout(vertically), so canvas is above the toolbar.
         layout2.addWidget(toolbar2)
         
+        # The followings are layouts for multi-test.
+        ## set layouts contains figures.
+        self.figure_R = pyplot.figure()
+        self.figure2_M, self.fig2M_host = pyplot.subplots()
+        pyplot.subplots_adjust(right=0.75)
+        self.canvas_R = FigureCanvasQTAgg(self.figure_R)
+        self.canvas2_M = FigureCanvasQTAgg(self.figure2_M)
+        layout_R = QtGui.QVBoxLayout(self.myframe_R)
+        layout2_M = QtGui.QVBoxLayout(self.myframe_Jv_2)
+        layout_R.setContentsMargins(0,0,0,0)
+        layout2_M.setContentsMargins(0,0,0,0)
+        layout_R.addWidget(self.canvas_R)
+        layout2_M.addWidget(self.canvas2_M)
+        ## set tool bars of figures.
+        toolbar_R = NavigationToolbar(self.canvas_R,self)
+        toolbar2_M = NavigationToolbar(self.canvas2_M,self)
+        layout_R.addWidget(toolbar_R) # adopts QVBoxLayout(vertically), so canvas is above the toolbar.
+        layout2_M.addWidget(toolbar2_M)
     
     def canvas_plot(self):
         '''
-        Plot the results using functions in module 'myAGD'.
+        Plot the results using plot functions here.
         '''
         self.plot_multi_along("Temperatures along Model ",self.T_list_labels,self._instance.x,\
                      self.T_list_values,'Temperature (C)','')
         self.plot_parasite_axis(self._instance.Jv_flux_condensed_water_along,self._instance.Q_heattransfer_along,\
                                 self._instance.delta_f_condensed_water_along)
-        self.canvas.draw()
+        self.canvas.draw()  
         self.canvas2.draw()
         #ax.hold(True) # not indispensable.
+    
+    def canvas_plot2(self):
+        '''
+        Plot the results using functions in module 'myAGD'.
+        '''
+        # for dict_value in self.dict_multi_values.values():
+        # get dict_multi_values's all values, and put them into a list.
+            # if type(dict_value) == np.ndarray:
+                # compare_values = dict_value # cannot get the value or the key of the dictionary.
+
+        R_labels = ["Ra","Rf","Rp ","Rc"]
+        myAGD.plot_R_vs_X(self.figure_R,'Heat resistance','R (kJ-1 m2 K s)',R_labels,self.compare_label,\
+                            self.compare_values,self.R_heat_varies,'','')
+        #self.Jv_varies_ave,self.R_heat_varies,self.EE_varies_ave,self.GOR_varies
+        self.plot_parasite_axis2(self.Jv_varies_ave,self.GOR_varies,\
+                            self.EE_varies_ave)
+        self.canvas_R.draw()
+        self.canvas2_M.draw()
     
     def plot_parasite_axis(self,_Jv,_Q,_delta_f):
         '''
@@ -83,18 +122,20 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         _Jv,_Q,_delta_f: they are in the _instance.
         '''
         Font  = {'family':'Tahoma', 'size':12}
+        # self.figure2.clf()
         # create parasite axes
         host = self.fig2_host
         Q_part = host.twinx()
         delta_f_part = host.twinx()
+
         
         # offset the parasite axes
         delta_f_part.spines["right"].set_position(("axes",1.2))
         
         # plot
-        l1, = host.plot(_Jv,color='b',label='Flux')
-        l2, = Q_part.plot(_Q/1e3,color='r',label='Heat transfer')
-        l3, = delta_f_part.plot(_delta_f*1e3,color='g',label='$\Delta$ condensate') 
+        l1, = host.plot(self._instance.x,_Jv,color='b',label='Flux')
+        l2, = Q_part.plot(self._instance.x,_Q/1e3,color='r',label='Heat transfer')
+        l3, = delta_f_part.plot(self._instance.x,_delta_f*1e3,color='g',label='$\Delta$ condensate') 
         
         # set label
         host.set_title("Flux,Heat transfer and $\Delta$ condensate vs. x")
@@ -102,6 +143,39 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         host.set_ylabel("Flux (kg/m/hr)",fontdict=Font)
         Q_part.set_ylabel("Heat transfer (1.0e-3*kJ/m/hr)",fontdict=Font)
         delta_f_part.set_ylabel("$\Delta$ condensate (mm)",fontdict=Font)
+        
+        lines = [l1,l2,l3]
+        host.legend(lines,[l.get_label() for l in lines],prop={'size':10}) # get from the web.
+    
+    def plot_parasite_axis2(self,_Jv,_Q,_delta_f):
+        '''
+        Use pyplot.subplots() as a self.figure, get host, use host to generate 2 parasite axes,\
+        Then use host.plot(), after that, return to canvas_plot to canvas.draw.
+        This function is used to plot 3 figures(Jv,Q,delta_f) in one plot.
+        Params
+        ------
+        _Jv,_Q,_delta_f: they are compare_values, just use the names.
+        '''
+        Font  = {'family':'Tahoma', 'size':12}
+        # create parasite axes
+        host = self.fig2M_host ##
+        Q_part = host.twinx()
+        delta_f_part = host.twinx()
+        
+        # offset the parasite axes
+        delta_f_part.spines["right"].set_position(("axes",1.2))
+        
+        # plot
+        l1, = host.plot(self.compare_values,_Jv,color='b',label='Flux')
+        l2, = Q_part.plot(self.compare_values,_Q,color='r',label='GOR')
+        l3, = delta_f_part.plot(self.compare_values,_delta_f,color='g',label='TE') 
+        
+        # set label
+        host.set_title("Flux,GOR and TE in various conditions")
+        host.set_xlabel(self.compare_label,fontdict=Font)
+        host.set_ylabel("Flux (kg/m/hr)",fontdict=Font)
+        Q_part.set_ylabel("GOR",fontdict=Font)
+        delta_f_part.set_ylabel("TE",fontdict=Font)
         
         lines = [l1,l2,l3]
         host.legend(lines,[l.get_label() for l in lines],prop={'size':10}) # get from the web.
@@ -148,7 +222,120 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         '''
         This function is only to display text in GUI.
         '''
-        self.output_line.setText(str(self._instance.Jv_flux_average))
+        self.AGD_TE = myAGD.compute_thermal_efficiency(self._instance)
+        self.AGD_TE_avg = sum(self.AGD_TE)/int(self.Nx_spinBox.value())
+        self.AGD_GOR = myAGD.computeGOR(self._instance)
+        self.GOR_line.setText('{:.3f}'.format(self.AGD_GOR))
+        self.TE_line.setText('{:.3f}'.format(self.AGD_TE_avg))
+        if self._instance.warning_flag:
+            self.velocity_text.setText("Warning! Divergence detected!"+\
+                                        '\n'+"Hot velocity(m/s):"+'{:4f}'.format(self._instance.hot_velocity)+\
+                                        '\n'+"Cold velocity(m/s):"+'{:.4f}'.format(self._instance.cold_velocity))
+        else:
+            self.velocity_text.setText("Hot inlet velocity(m/s):"+'{:.4f}'.format(self._instance.hot_velocity)+\
+                                        '\n'+"Cold inlet velocity(m/s):"+'{:.4f}'.format(self._instance.cold_velocity))
+        
+    def text_display2(self):
+        '''
+        This function is only to display multi-text in GUI.
+        '''
+        #self.Jv_varies_ave,self.R_heat_varies,self.EE_varies_ave,\
+                # self.GOR_varies
+        np.set_printoptions(precision=3)
+        if sum(self.warnF):
+            self.output_text_2.setText("Warning! Divergence detected!"+'\n'\
+                                        +"Various values:"+self.compare_label+str(self.compare_values)+'\n'\
+                                        +"Divergence instances:"+str(self.warnF)+'\n'\
+                                        +"Jv avg(kg/m/hr):"+str(self.Jv_varies_ave)+"\n"\
+                                        +"TE:"+str(self.EE_varies_ave)+'\n'\
+                                        +"GOR:"+str(self.GOR_varies))
+        else: 
+            self.output_text_2.setText("Various values:"+self.compare_label+str(self.compare_values)+'\n'\
+                                        +"Jv avg(kg/m/hr):"+str(self.Jv_varies_ave)+"\n"\
+                                        +"TE:"+str(self.EE_varies_ave)+'\n'\
+                                        +"GOR:"+str(self.GOR_varies))
+                
+    def text_export_single(self):
+        '''
+        This function is for exporting .txt file which contains 
+        the data in the output_text_box and the figures.
+        Note: 1.It will write in the parameters you set of the model.
+              2.It will create a file named single-test.txt
+              right in the path of this program,
+              and rewrite data to a file if it already exists.
+        '''
+        _F = open('single-test.txt','w')
+        _F.write('This is a single-test example.'+\
+                '\n'+'The parameters are:'+'\n'+\
+                ' Length,Width,ChanlHot,ChanlCold,Air gap,Plate,K plate,Mass flow,T hot in,T cold in,Salinity'+'\n'+\
+                '{:>8}'.format(self.length_line.text())+'{:>8}'.format(self.length_line.text())+\
+                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
+                '{:>12}'.format(self.length_line.text())+'{:>9}'.format(self.length_line.text())+\
+                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
+                '{:>12}'.format(self.length_line.text())+'{:>14}'.format(self.length_line.text())+\
+                '{:>10}'.format(self.length_line.text()))
+        _F.write('\n'+'GOR'+str(self.AGD_GOR))
+        _F.write('\n'+'Thermal efficiency along the model'+str(self.AGD_TE))
+        _F.write('\n'+'flux average (kg/m/hr):'+str(self._instance.Jv_flux_average))
+        _F.write('\n'+'flux along the model (kg/m/hr):'+str(self._instance.Jv_flux_condensed_water_along))
+        _F.write('\n'+'Capacity of heat transfer (kJ/m/hr):'+str(self._instance.Q_heattransfer_along))
+        _F.write('\n'+'Thickness condensate water (m):'+str(self._instance.delta_f_condensed_water_along))
+        _F.write('\n'+'Temperature along the model:')
+        _F.write('\n'+'Thb (C)'+'\n'+str(self._instance.Thb))
+        _F.write('\n'+'Tha (C)'+'\n'+str(self._instance.Tha))
+        _F.write('\n'+'Taf (C)'+'\n'+str(self._instance.Tf))
+        _F.write('\n'+'Tfp (C)'+'\n'+str(self._instance.Tfp))
+        _F.write('\n'+'Tpc (C)'+'\n'+str(self._instance.Tpc))
+        _F.write('\n'+'Tcb (C)'+'\n'+str(self._instance.Tcb))
+        _F.write('\n'+'Heat Resistance along the model:')
+        _F.write('\n'+'Ra (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_values[0]))
+        _F.write('\n'+'Rf (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_values[1]))
+        _F.write('\n'+'Rp (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_values[2]))
+        _F.write('\n'+'Rc (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_values[3]))
+        _F.write('\n')
+        _F.close()
+    
+    def text_export_multi(self):
+        '''
+        This function is for exporting .txt file which contains 
+        the data in the output_text_box and the figures.
+        Note: 1.It will write in the parameters you set of the model.
+              2.It will create a file named multi-test.txt
+              right in the path of this program,
+              and rewrite data to a file if it already exists.
+        '''
+        _F = open('multi-test.txt','w')
+        _F.write('This is a multi-test example.'+\
+                '\n'+'The parameters are:'+'\n'+\
+                ' Length,Width,ChanlHot,ChanlCold,Air gap,Plate,K plate,Mass flow,T hot in,T cold in,Salinity'+'\n'+\
+                '{:>8}'.format(self.length_line_2.text())+'{:>8}'.format(self.length_line.text())+\
+                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
+                '{:>12}'.format(self.length_line.text())+'{:>9}'.format(self.length_line.text())+\
+                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
+                '{:>12}'.format(self.length_line.text())+'{:>14}'.format(self.length_line.text())+\
+                '{:>10}'.format(self.length_line.text()))
+        _F.write('\n'+'The variable is: '+self.compare_label+'  from--to--: '+str(self.compare_values))
+        #self.Jv_varies_ave,self.R_heat_varies,self.EE_varies_ave,self.GOR_varies
+        _F.write('\n'+'GOR'+'\n'+str(self.GOR_varies))
+        _F.write('\n'+'Thermal efficiency along the model'+'\n'+str(self.EE_varies_ave))
+        _F.write('\n'+'flux average (kg/m/hr):'+'\n'+str(self.Jv_varies_ave))
+        # _F.write('\n'+'flux along the model (kg/m/hr):'+str(self._instance.Jv_flux_condensed_water_along))
+        # _F.write('\n'+'Capacity of heat transfer (kJ/m/hr):'+str(self._instance.Q_heattransfer_along))
+        # _F.write('\n'+'Thickness condensate water (m):'+str(self._instance.delta_f_condensed_water_along))
+        # _F.write('\n'+'Temperature along the model:')
+        # _F.write('\n'+'Thb (C)'+'\n'+str(self._instance.Thb))
+        # _F.write('\n'+'Tha (C)'+'\n'+str(self._instance.Tha))
+        # _F.write('\n'+'Taf (C)'+'\n'+str(self._instance.Tf))
+        # _F.write('\n'+'Tfp (C)'+'\n'+str(self._instance.Tfp))
+        # _F.write('\n'+'Tpc (C)'+'\n'+str(self._instance.Tpc))
+        # _F.write('\n'+'Tcb (C)'+'\n'+str(self._instance.Tcb))
+        _F.write('\n'+'Heat Resistance vs.'+self.compare_label)
+        _F.write('\n'+'Ra (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_varies[0]))
+        _F.write('\n'+'Rf (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_varies[1]))
+        _F.write('\n'+'Rp (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_varies[2]))
+        _F.write('\n'+'Rc (kJ^(-1)*m2*K*s)'+'\n'+str(self.R_heat_varies[3]))
+        _F.write('\n')
+        _F.close()
         
     def boost_AGD(self):
         '''
@@ -156,23 +343,90 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         '''
         input_length = float(self.length_line.text())
         input_width = float(self.width_line.text())
+        # input_airgap = float(self.airgap_line.text())/1000
+        # input_Thickp = float(self.plate_line.text())/1000
+        # input_mass = float(self.mass_line.text())*60
+        # input_Kp = float(self.plate_line_K.text())*3.6
         # input..
         input_Nx = int(self.Nx_spinBox.value())
-        # _test = myAGD.exp_conditionX(_vhi=0.1,_vci=0.1,_airgap=2e-3,_length=1.,Nx=20)
         self._instance = myAGD.AG_D(_L=input_length,_W=input_width,_hfc=2e-3,_hcc=2e-3,_delta_a=4e-3,_delta_c=0.1e-3,_Kw=0.4*3.6,_mhi=5.5*60,_mci=5.5*60,_thi=80,_tci=20,_shi=42.,_sc=42.)
         self._instance.get_mesh_setup(input_Nx)
         self._instance.get_counter_current(input_Nx)
+        self._instance.get_velocity()
         
         self.T_list_labels = ["Thb","Tha","Tf","Tfp","Tpc","Tcb"]
         self.T_list_values = [self._instance.Thb,self._instance.Tha,\
                         self._instance.Tf,self._instance.Tfp,self._instance.Tpc,self._instance.Tcb]
+        self.R_heat_values = myAGD.compute_R_heat(self._instance) # get 3D array
         # text_display
         self.text_display()
-
+        
+    def boost_AGD_multiple(self):
+        '''
+        To start myAGD and compute several instances.
+        '''
+        input_dict = {} # a dictionary to contain values.
+        steps_value = int(self.step_spinBox.value())
+        #[length,air-gap,hot_velocity,T_hot,T_cold] maybe a sub-list.
+        try:
+            input_length_end = float(self.length_line_end.text())
+            input_length_start = float(self.length_line_2.text())
+            input_dict["L"] = np.linspace(input_length_start,input_length_end,steps_value)
+            # print '\n'+'Here get np.ndarray'
+        except:
+            input_dict['L'] = float(self.length_line_2.text())
+        try:
+            input_airgap_end = float(self.airgap_line_end.text())/1000
+            input_airgap_start = float(self.airgap_line_2.text())/1000
+            input_dict["air"] = np.linspace(input_airgap_start,input_airgap_end,steps_value)
+        except:
+            input_dict['air'] = float(self.airgap_line_2.text())/1000
+        try:
+            input_hotv_end = float(self.hot_v_line_end.text())# (m/s)
+            input_hotv_start = float(self.hot_v_line.text())
+            input_dict["hotV"] = np.linspace(input_hotv_start,input_hotv_end,steps_value)
+        except:
+            input_dict['hotV'] = float(self.hot_v_line.text())
+        try:
+            input_coldv_end = float(self.cold_v_line_end.text())# (m/s)
+            input_coldv_start = float(self.cold_v_line.text())
+            input_dict["coldV"] = np.linspace(input_coldv_start,input_coldv_end,steps_value)
+        except:
+            input_dict['coldV'] = float(self.cold_v_line.text())
+        try:
+            input_Thot_end = float(self.Thot_line_end.text())
+            input_Thot_start = float(self.Thot_line_2.text())
+            input_dict["hotT"] = np.linspace(input_Thot_start,input_Thot_end,steps_value)
+        except:
+            input_dict['hotT'] = float(self.Thot_line_2.text())
+        try:
+            input_Tcold_end = float(self.Tcold_line_end.text())
+            input_Tcold_start = float(self.Tcold_line_2.text())
+            input_dict["coldT"] = np.linspace(input_Tcold_start,input_Tcold_end,steps_value)
+        except:
+            input_dict['coldT'] = float(self.Tcold_line_2.text())
+        #_L=input_length,_W=input_width,_hfc=2e-3,_hcc=2e-3,\
+        #_delta_a=4e-3,_delta_c=0.1e-3,_Kw=0.4*3.6,\
+        #_mhi=5.5*60,_mci=5.5*60,_thi=80,_tci=20,_shi=42.,_sc=42.
+        input_dict['W'] = float(self.width_line_2.text())
+        input_dict['hfc'] = float(self.channel_hot_line_2.text())/1000
+        input_dict['hcc'] = float(self.channel_cold_line_2.text())/1000
+        input_dict['Thick_p'] = float(self.plate_line_2.text())/1000
+        input_dict['K_p'] = float(self.plate_line_K_2.text())*3.6
+        input_dict['salinity'] = float(self.salinity_line_2.text())
+        # self._instance = myAGD.AG_D(_L=input_length,_W=input_width,_hfc=2e-3,_hcc=2e-3,_delta_a=4e-3,_delta_c=0.1e-3,_Kw=0.4*3.6,_mhi=5.5*60,_mci=5.5*60,_thi=80,_tci=20,_shi=42.,_sc=42.)
+        # self._instance.get_mesh_setup(input_Nx)
+        # self._instance.get_counter_current(input_Nx)
+        self.Jv_varies_ave,self.R_heat_varies,self.EE_varies_ave,self.GOR_varies,self.warnF,\
+                        self.compare_values,self.compare_label=myAGD.make_comparasion_params(input_dict,steps_value)
+        self.text_display2()
+        self.dict_multi_values = input_dict
+        
+# np.set_printoptions(precision=3)
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     window = MyApp()
-    myImage = QtGui.QPixmap('C:\\AGD\\resources\\Ding.jpg') #load '.jpg'
+    myImage = QtGui.QPixmap('resources\Ding.JPG') #load '.jpg'
     window.exhibit_graphic(myImage)
     window.show()
     sys.exit(app.exec_())
