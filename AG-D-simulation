@@ -1,18 +1,26 @@
 
 # coding: utf-8
-# I changed here.!!! This is changed by based on Mem.
+
 # This notebook is used for AG-D programming. No membrane.
 
-# Premise:
-# 1. The temperature difference between the bulk and the interface(air-water) is due to Four's heat conduction law.
-# 2. The conductivity of mixed air is assumed of the temperature at 50 C.
-# 3. falling water in the form of film
-# 4. 
+# # This is the MASTER.
+# ## Last checkpoint
+# 
+# 3. exp_conditionX: PE as cooling plate & exp_conditionB:
+# 4. CalculateH (only for cooling side)has 2 methods.use "B" method, and L=self.L/(Nx-1)
+# 5. Needs verified: hot/cold channel
+# 6. heat/mass resistance (absolute) is calculated by delta_T/Q(or permeate). And get somepoint R not average.
+# 7. Q verified. Q = Kair/delta_a*(Tha-Tf)+Jv*hg
+# 8. GOR(in which hg is unsure)
+# 9. Evaporation Efficiency(needs to review the delta_Hg)
+# 10. get CalculateEnthalpy of evaporation. least square method.
 
 # In[1]:
 
 import numpy as np
 from matplotlib import pyplot
+#from mpl_toolkits.mplot3d import Axes3D
+#from matplotlib import cm
 get_ipython().magic(u'matplotlib inline')
 
 
@@ -214,6 +222,7 @@ def CalculateCp(T,S):
 # enthalpy for saturated water vapour
 def CalculateEnthalpy(T):
     '''
+    Calculate enthalpy for saturated water vapour.
     Params
     ------
     T: (C) range of (0.01-200 C) Temperature of water vapour.
@@ -226,6 +235,22 @@ def CalculateEnthalpy(T):
 
 
 # In[11]:
+
+def CalculateEnthalpyEvaporation(T):
+    '''
+    Calculate enthalpy for saturated liquid water. The equation is from Li Site.
+    Params
+    ------
+    T: (C) from 6 - 100 C. temprature of water.
+    Returns
+    -------
+    hg: (kJ/kg)
+    '''
+    f = np.poly1d([-2.44,2.503*1000])
+    return f(T)
+
+
+# In[12]:
 
 # Compute K of saline water.
 def CalculateK_water(T, S):
@@ -261,14 +286,16 @@ def CalculateK_water(T, S):
     return Kwater*3.6
 
 
-# In[12]:
+# In[13]:
 
 # Compute H 
-def CalculateH(width,height,k_liquid,rho,miu,V,Pr):
+def CalculateH(width,height,length,k_liquid,rho,miu,V,Pr):
     '''
     This is used for compute H in the hotside or coldside channel.
+    # Attention! Choose a method "A" or "B" before using it.
     Params
     ----------
+    width,height,length: (m) The scale of the channel.
     k_liquid: (kJ/(m K hr)) thermal conductivity of hot or cold body.
     rho: (kg/m3) use different rho when compute hot and cold water.
     miu: (kg/m/s)dynamic viscosity.
@@ -279,21 +306,30 @@ def CalculateH(width,height,k_liquid,rho,miu,V,Pr):
     ---------
     H: (kJ/(m2 K hr))=(3600*kW/(m2 K)) heat transfer coefficient.
     '''
-    Ks = 1.904*(SPACER_df/SPACER_hs)**(-.039)*SPACER_epsilon**.75*np.sin((np.pi/4)**.086)
-    #Ks = 1.
-    dh = 4.*SPACER_epsilon*SPACER_df*SPACER_hs/(2*SPACER_df + 4*(1-SPACER_epsilon)*SPACER_hs)
-    #dh = 4.*width*height/(width+height)/2
-    Re = rho*dh*V/3600./miu # params of the body.
-    Nu = 0.029*Ks*Re**.8*Pr**.33
+    _compute_h = "B"
+    if _compute_h == "A":
+        Ks = 1.904*(SPACER_df/SPACER_hs)**(-.039)*SPACER_epsilon**.75*np.sin((np.pi/4)**.086)
+        #Ks = 1.
+        dh = 4.*SPACER_epsilon*SPACER_df*SPACER_hs/(2*SPACER_df + 4*(1-SPACER_epsilon)*SPACER_hs)
+        #dh = 4.*width*height/(width+height)/2
+        Re = rho*dh*V/3600./miu # params of the body.
+        Nu = 0.029*Ks*Re**.8*Pr**.33
+    elif _compute_h == "B":
+        dh = 4.*width*height*2/(width+2*height)/2
+        Re = rho*dh*V/3600./miu # params of the body.
+        Nu = 1.62*(Re*Pr*dh/length)**.33
     
+    calculated_h = Nu*k_liquid/dh
     #print "Ks: %r" %Ks
     #print "Nu: %r" %Nu
     #print "Re: %r" %Re
+    #print "dh: %r" %dh
+    #print "h: %r " %calculated_h
     
-    return Nu*k_liquid/dh
+    return calculated_h
 
 
-# In[13]:
+# In[14]:
 
 # Compute Pr
 def CalculatePr(miu,Cp,lambda_liquid):
@@ -317,18 +353,9 @@ def CalculatePr(miu,Cp,lambda_liquid):
     '''
     
     return miu*Cp/(lambda_liquid/3600)
-    # if T>=20 and T<40:
-        # Pr = 5.5 
-    # elif T>=40 and T<60:
-        # Pr = 3.6 
-    # elif T>=60 and T<=80:
-        # Pr = 2.6
-    # else:
-        # raise ValueError("Input is out of range!")
-    # return Pr 
 
 
-# In[14]:
+# In[15]:
 
 # Checking nominal Numbers
 def CheckNumber(name):
@@ -389,12 +416,12 @@ def CheckNumber(name):
         raise NameError("My Error! No such function. Please input a valid string!")
 
 
-# In[15]:
-
-CheckNumber('H')
-
-
 # In[16]:
+
+CheckNumber('K_water')
+
+
+# In[17]:
 
 # Computation for Jv
 def ComputationForJv(Tha,Tf,air_gap_width):
@@ -410,7 +437,7 @@ def ComputationForJv(Tha,Tf,air_gap_width):
     return A,Pha,Pf
 
 
-# In[17]:
+# In[18]:
 
 # Computation for Q
 def ComputationForQ(width,height,mh,Tha,Tf,Thb,S_hot,K_hotwater):
@@ -425,21 +452,21 @@ def ComputationForQ(width,height,mh,Tha,Tf,Thb,S_hot,K_hotwater):
     return hg,Hh
 
 
-# In[18]:
+# In[19]:
 
 # Computation for Tf
-def ComputationForTf(width,height,mc,Sc,Tcb,Tf):
+def ComputationForTf(width,height,length,mc,Sc,Tcb,Tf):
     '''For neat code.'''
     Vc = mc/rho_coldwater/(width*height)#(m/hr) average velocity of water
     miu_cold = Calculatemiu(Tcb,Sc)
     K_coldwater = CalculateK_water(Tcb,Sc)
     K_fallingwater = CalculateK_water(Tf,0)
     Pr_cold = CalculatePr(miu_cold,Cp_cold,K_coldwater)
-    Hc = CalculateH(width,height,K_coldwater,rho_coldwater,miu_cold,Vc,Pr_cold)
+    Hc = CalculateH(width,height,length,K_coldwater,rho_coldwater,miu_cold,Vc,Pr_cold)
     return Hc,K_fallingwater
 
 
-# In[19]:
+# In[20]:
 
 # Checking
 def Checking(Jv,delta_f,Q,Tf,temp):
@@ -456,7 +483,55 @@ def Checking(Jv,delta_f,Q,Tf,temp):
     print "The criterion value is: %r " %temp
 
 
-# In[20]:
+# In[21]:
+
+def resistance_mass_transfer(T1,T2,Thb,Tcb,permeat):
+    '''
+    This func is used to compute mass transfer resistance in every grid horizontally.
+    -------
+    Params
+    ------
+    T1,T2: (C) The temperature at two points for calculate pressure, the former is higher than the latter, P1=f(T1),P2=f(T2).
+    Thb, Tcb: (C) The max and the minimize temperature(in flow water) for calculate pressure, Phb=f(Thb) and Pcb=f(Tcb).
+    permeat: (kg/m2/hr) the permeating water flux.
+    
+    Returns
+    ------
+    resistance: The mass transfer resistance in each domain.
+    relative_resistance: The relative one. relative_resistance=resistance/Sigma(resistance)
+    '''
+    delta_P = VaporPressure(T1+273.15) - VaporPressure(T2+273.15)
+    delta_Ptotal = VaporPressure(Thb+273.15) - VaporPressure(Tcb+273.15)
+    resistance = delta_P/permeat
+    relative_resistance = delta_P/delta_Ptotal
+    return resistance,relative_resistance
+
+
+# In[22]:
+
+def resistance_heat_transfer(T1,T2,Thb,Tcb,heat_transfer):
+    '''
+    This func is used to compute heat transfer resistance in every grid horizontally.
+    -------
+    Params
+    ------
+    T1,T2: (C) The former is higher than the latter.
+    Thb, Tcb: (C) The max and the minimize temperature(in flow water).
+    heat_transfer: (kJ/m2/hr) the permeating water flux.
+    
+    Returns
+    ------
+    resistance: The heat transfer resistance in each domain.
+    relative_resistance: The relative one. relative_resistance=resistance/Sigma(resistance)
+    '''
+    delta_T = T1 - T2
+    delta_Ttotal = Thb - Tcb
+    resistance = delta_T/heat_transfer
+    relative_resistance = delta_T/delta_Ttotal
+    return resistance,relative_resistance
+
+
+# In[23]:
 
 class AG_D:
     '''Using for computing AGMD process. Single input and equal output.'''
@@ -508,7 +583,7 @@ class AG_D:
         Generates
         -----------
         x: 1-D array of Nx floats, stores dimension info.
-        Thb,Tcb,Tf,Thm,Tma: 1-D array of Nx floats, stores temperature info.
+        Thb,Tha,Tf,Tfp,Tpc,Tcb: 1-D array of Nx floats, stores temperature info.
         mh,S_hot: 1-D array of Nx floats, stores feed water info.
         '''
         
@@ -522,8 +597,8 @@ class AG_D:
         self.Tha = np.ones(Nx) # The T of the interface of hotfeed and airgap.
         #self.Thm = np.ones(Nx) # The T of the interface of hotfeed and membrane.
         #self.Tma = np.ones(Nx) # The T of the surface of membrane facing the air channel.
-        #Tfw = np.ones(Nx) # The T of film water in contact with cooling plate.
-        #Tcw = np.ones(Nx) # The T of the wall in cooling channel.
+        self.Tfp = np.ones(Nx) # The T of film water in contact with cooling plate.
+        self.Tpc = np.ones(Nx) # The T of the wall in cooling channel.
         self.mh = np.ones(Nx)*self.mass_hot_inlet # mass flow of hot water at every grid.
         self.S_hot = np.ones(Nx)*self.salinity_hot_inlet # salinity of hot water.
         ## store output values wanted to show.
@@ -573,10 +648,10 @@ class AG_D:
 
                     K_feedwater = CalculateK_water(self.Thb[i],self.S_hot[i])
                     hg = CalculateEnthalpy(.5*(self.Tha[i]+self.Tf[i]))
-                    Q = (self.Thb[i] - self.Tf[i] + Jv*hg*(self.delta_a/Kab))/(.5*self.height_feed_channel/K_feedwater+self.delta_a/Kab) 
+                    Q = (self.Thb[i] - self.Tf[i] + Jv*hg*(self.delta_a/Kab))/(self.delta_a/Kab) 
                     #Compute hg,K_water. delta_a are Const. T depends on grid.
 
-                    Tha_temp = ComputeTha(Q,K_feedwater,.5*self.height_feed_channel,self.Thb[i])
+                    #Tha_temp = ComputeTha(Q,K_feedwater,.5*self.height_feed_channel,self.Thb[i])
                     Tha_temp = self.Thb[i]
                     error_Tha = abs(Tha_temp - self.Tha[i])/Tha_temp
                     self.Tha[i] = Tha_temp
@@ -592,7 +667,7 @@ class AG_D:
                 delta_f = (3.*Jv/3600*miu_f/(rho_l*(rho_l - rho_av)*G)*self.x[i])**(1./3) 
                 #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
 
-                Hc,Kf = ComputationForTf(self.width_effective,self.height_cooling_channel,                                         self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
+                Hc,Kf = ComputationForTf(self.width_effective,self.height_cooling_channel,self.length_vertical_effective/(Nx-1),                                         self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
                 Tf_temp = Q*(delta_f/Kf+self.delta_c/self.Kw+1./Hc) + self.Tcb[i] 
                 # Kw,delta_c/f are Const. Hc,Kf needs computed. T depends on grid.
 
@@ -657,9 +732,11 @@ class AG_D:
         learnRate = 2.
         error_Tcb = 10.
         error_i = 0. # alpha/(error_i+1) to make alpha decrease every step.
+        self.warning_flag = False #detecting divergence
         self.Tcb[0] = .3*(self.Thb[0]+self.Tcb[-1]) # supposed
         while error_Tcb > 1e-6 and error_i <= 30:
-
+            if error_i == 30:
+                self.warning_flag = True
             for i in range(Nx):
                 #print "Step %r of %r." %(i,Nx)
                 error_Tf = 10.
@@ -680,10 +757,10 @@ class AG_D:
 
                         K_feedwater = CalculateK_water(self.Thb[i],self.S_hot[i])
                         hg = CalculateEnthalpy(.5*(self.Tha[i]+self.Tf[i]))
-                        Q = (self.Thb[i] - self.Tf[i] + Jv*hg*(self.delta_a/Kab))/(.5*self.height_feed_channel/K_feedwater+self.delta_a/Kab) 
+                        Q = (self.Thb[i] - self.Tf[i] + Jv*hg*(self.delta_a/Kab))/(self.delta_a/Kab) 
                         #Compute hg,K_water. delta_a are Const. T depends on grid.
 
-                        Tha_temp = ComputeTha(Q,K_feedwater,.5*self.height_feed_channel,self.Thb[i])
+                        #Tha_temp = ComputeTha(Q,K_feedwater,.5*self.height_feed_channel,self.Thb[i])
                         Tha_temp = self.Thb[i]
                         error_Tha = abs(Tha_temp - self.Tha[i])/Tha_temp
                         self.Tha[i] = Tha_temp
@@ -699,9 +776,11 @@ class AG_D:
                     delta_f = (3.*Jv/3600*miu_f/(rho_l*(rho_l - rho_av)*G)*self.x[i])**(1./3) 
                     #rho_av,rho_l,g is Const. Compute miu. x depends on grid.
 
-                    Hc,Kf = ComputationForTf(self.width_effective,self.height_cooling_channel,                                             self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
+                    Hc,Kf = ComputationForTf(self.width_effective,self.height_cooling_channel,self.length_vertical_effective/(Nx-1),                                             self.mass_cold_inlet,self.salinity_cold,self.Tcb[i],self.Tf[i])
                     Tf_temp = Q*(delta_f/Kf+self.delta_c/self.Kw+1./Hc) + self.Tcb[i] 
                     # Kw,delta_c/f are Const. Hc,Kf needs computed. T depends on grid.
+                    self.Tfp[i] = self.Tf[i] - Q*delta_f/Kf
+                    self.Tpc[i] = self.Tfp[i] - Q*self.delta_c/self.Kw
 
                     error_Tf = abs(Tf_temp - self.Tf[i])/Tf_temp
                     self.Tf[i] = Tf_temp
@@ -733,11 +812,13 @@ class AG_D:
                 self.Q_heattransfer_along[i] = Q # heat transfer along the membrane
                 self.delta_f_condensed_water_along[i] = delta_f #delta_f along the membrane
 
-            
+            print "Tcb[-1]: %.4f C" %self.Tcb[-1]
+            if self.Tcb[-1] < 0.: 
+                self.Tcb[-1] = 0.
+            elif self.Tcb[-1] > self.temperature_hot_inlet: 
+                self.Tcb[-1] = self.temperature_hot_inlet
             temp_move = self.Tcb[-1] - self.temperature_cold_inlet
-            print "Tcb[-1]: %.3f C" %self.Tcb[-1]
             error_Tcb = abs(temp_move)/self.temperature_cold_inlet
-
             alpha = 1./(.5*error_i+1)*learnRate
             error_i += 1 
             self.Tcb[0] = self.Tcb[0] - temp_move
@@ -754,7 +835,7 @@ class AG_D:
         print "Average of sum(flux)/Nx: %.4f " %(sum(self.Jv_flux_condensed_water_along)/Nx)
 
 
-# In[21]:
+# In[24]:
 
 def plot_along_membrane(plot_title,plot_ylabel,x_values,y_values,y_limits):
     '''
@@ -783,17 +864,19 @@ def plot_along_membrane(plot_title,plot_ylabel,x_values,y_values,y_limits):
     pyplot.plot(x_values,y_values,color='#003366',ls='-')
 
 
-# In[22]:
+# In[25]:
 
-def plot_flux_vs_X(plot_title,plot_ylabel,plot_xlabel,x_values,y_values,y_limits):
+def plot_flux_vs_X(plot_title,plot_ylabel,y_labels,plot_xlabel,x_values,y_values,x_limits,y_limits):
     '''
     Pyplot to show varying Jv(flux of condensed water on the cooling plate) depends on other parameters(velocity,airgap,length).
     ------
     Params
     ------
     plot_title,plot_ylabel,plot_xlabel: strings, to describe Title and Y-Label of the fig plotted.
-    x_values,y_values: 1-D array of floats.
-    y_limits: 1-D array with 2 elements which defines the lower/upper boundary of the plot y-value
+    y_labels: name strings of plot y_values.
+    x_values: 1-D array of floats.
+    y_values: n-D array of floats.
+    y_limits,x_limits: 1-D array with 2 elements which defines the lower/upper boundary of the plot y-value
                 i.e. y_limits = [lowerbound, upperbound]
                 if no concerns for boundary, input y_limits = "no boundary" instead.
     '''
@@ -801,36 +884,49 @@ def plot_flux_vs_X(plot_title,plot_ylabel,plot_xlabel,x_values,y_values,y_limits
     pyplot.title(plot_title);
     pyplot.xlabel(plot_xlabel);
     pyplot.ylabel(plot_ylabel);
-    if type(y_limits) == str:
+    if type(y_limits) == str and type(x_limits)==str:
         print "No specific restrict boundary."
-    elif type(y_limits) == list:
+    elif type(y_limits) == list and type(x_limits)==list:
         y_max = y_limits[1]
         y_min = y_limits[0]
+        x_max = x_limits[1]
+        x_min = x_limits[0]
+        pyplot.xlim(x_min,x_max)
         pyplot.ylim(y_min,y_max)
     else : 
-        raise NameError("My Error. y_limits input is wrong.")
-    pyplot.scatter(x_values,y_values,marker='^')
-    pyplot.plot(x_values,y_values,color='#003366',ls='-')
+        raise NameError("My Error. x/y_limits input is wrong.")
+    n = len(y_values)
+    try:
+        pyplot.scatter(x_values,y_values,marker='^')
+        pyplot.plot(x_values,y_values,color='#003366',ls='-')
+    except:
+        for i in range(n):
+            #pyplot.scatter(x_values,y_values[i],marker='^')
+            pyplot.plot(x_values,y_values[i])
+        pyplot.legend(y_labels)
 
 
-# In[23]:
+# In[26]:
 
-def plot_temperature(plot_title,plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,                     x_values,y_values1,y_values2,y_values3,y_values4,y_limits):
+def plot_muliti_along(plot_title,_list_labels,                     x_values,_list_values,y_label,y_limits):
     '''
-    Pyplot to show T, mh, Jv, delta_f along the membrane.
+    Pyplot to show multi-various along the membrane. The 3rd([2]) position is for Tf or Rfp etc..
+    ---------------
     Params
     ------
     plot_title,plot_ylabel_N: strings, to describe Title and Y-Label of the fig plotted.
     x_values: x along the membrane. 1-D array of floats.
     y_values_N: (C) Temperature along the membrane. 1-D array of floats.
+    y_label: a string for y axis.
     y_limits: 1-D array with 2 elements which defines the lower/upper boundary of the plot y-value
                 i.e. y_limits = [lowerbound, upperbound]
                 if no concerns for boundary, input y_limits = "no boundary" instead.
     '''
+    
     pyplot.figure(figsize=(10,5))
     pyplot.title(plot_title);
     pyplot.xlabel('x(m)');
-    pyplot.ylabel("Temperature (C)");
+    pyplot.ylabel(y_label);
     if type(y_limits) == str:
         print "No specific restrict boundary."
     elif type(y_limits) == list:
@@ -838,28 +934,30 @@ def plot_temperature(plot_title,plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylab
         y_min = y_limits[0]
         pyplot.ylim(y_min,y_max)
     else : 
-        raise NameError("My Error. y_limits input is wrong.")
+        raise NameError("MyError! y_limits input is wrong.")
     #pyplot.scatter(x_values,y_values,marker='^')
-    pyplot.plot(x_values,y_values1,color='#003366')
-    pyplot.plot(x_values,y_values2)
-    pyplot.plot(x_values,y_values3,ls='-.')
-    pyplot.scatter(x_values,y_values3)
-    pyplot.plot(x_values,y_values4)
+    n_arrays = len(_list_labels)
+    for i_array in range(n_arrays):
+        if i_array == 2: pyplot.plot(x_values,_list_values[i_array], ls='-.')
+        else: pyplot.plot(x_values,_list_values[i_array])
+    #pyplot.plot(x_values,y_values1,color='#003366')
+    #pyplot.plot(x_values,y_values2)
+    #pyplot.plot(x_values,y_values3,ls='-.')
+    #pyplot.scatter(x_values,y_values3)
+    #pyplot.plot(x_values,y_values4)
     #pyplot.plot(x_values,y_values5)
-    pyplot.legend((plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4))
+    #pyplot.plot(x_values,y_values6)
+    #pyplot.legend((plot_ylabel1,plot_ylabel2,plot_ylabel3,plot_ylabel4,plot_ylabel5,plot_ylabel6))
+    pyplot.legend(_list_labels)
 
 
-# In[24]:
-
-help(AG_D)
-
-
-# In[25]:
+# In[27]:
 
 # For our Graduation experiment condition
-def exp_condition(_vhi,_vci,_airgap,_length,Nx):
+def exp_conditionX(_vhi,_vci,_airgap,_length,Nx):
     '''
     Only for neat code when testing Xu's condition.
+    Since the model is symmetric on both sides(axes of hot and cooling channels), the hot channel is 4./2 = 2mm, cooling is 3./2=1.5mm.
     -------------------------------------------
     Params
     -------
@@ -874,97 +972,77 @@ def exp_condition(_vhi,_vci,_airgap,_length,Nx):
     velocity_feeding_inlet = _vhi # (m/s) The velocity of feeding saline water.
     velocity_cooling_inlet = _vci # (m/s) The velocity of cooling water.
     width_of_model = 1.
-    height_of_hotchannel = 4e-3 #(m) The height of hot channel
-    height_of_coolingchannel = 3e-3 # (m) The height of cooling channel
+    height_of_hotchannel = 4e-3/2 #(m) The height of hot channel
+    height_of_coolingchannel = 3e-3/2 # (m) The height of cooling channel
     mass_feeding_inlet = rho_hotwater*velocity_feeding_inlet*width_of_model*height_of_hotchannel*3600 # (kg/hr)
     mass_cooling_inlet = rho_coldwater*velocity_cooling_inlet*width_of_model*height_of_coolingchannel*3600 # (kg/hr)
-    test_nomembrane = AG_D(_L=_length,_W=width_of_model,_hfc=height_of_hotchannel,_hcc=height_of_coolingchannel,                           _delta_a=_airgap,_delta_c=.15e-3,_Kw=0.16*3.6,                        _mhi=mass_feeding_inlet,_mci=mass_cooling_inlet,_thi=80.,_tci=20,_shi=42.,_sc=0.);
+    test_nomembrane = AG_D(_L=_length,_W=width_of_model,_hfc=height_of_hotchannel,_hcc=height_of_coolingchannel,                           _delta_a=_airgap,_delta_c=.1e-3,_Kw=0.4*3.6,                        _mhi=mass_feeding_inlet,_mci=mass_cooling_inlet,_thi=80.,_tci=20,_shi=42.,_sc=0.);
     test_nomembrane.get_mesh_setup(Nx);
     test_nomembrane.get_counter_current(Nx);
     return test_nomembrane
 
 
-# In[33]:
+# In[28]:
 
-# Checking grid independence
-# Got that Num_for_length = 20 is enough for Length = 1.0 m, counter-flow. i.e. 5cm per grid.
-Num_list = [100,200,400]
-for Num_for_length in Num_list:
-    print "The Nx: %d " %Num_for_length
-    exp_condition(_vhi=0.25,_vci=0.25,_airgap=4e-3,_length=10.,Nx=Num_for_length)
-    print 
-    print 
-
-
-# In[70]:
-
-# Comparasion on velocity
-velocity_Nvalues = np.array([0.01,0.02,0.05,0.1,0.2,.5]) # m/s
-Jv_varies_velocity = np.zeros(len(velocity_Nvalues))
-for test_i,velocity_inlet in enumerate(velocity_Nvalues):
-    print "The inlet velocity is: %.2f m/s" %velocity_inlet
-    compare_velocity = exp_condition(_vhi=velocity_inlet,_vci=.1,_airgap=4e-3,_length=1.,Nx=20)
-    Jv_varies_velocity[test_i] = compare_velocity.Jv_flux_average #Jv (average along membrane) for each instance
-    print
-    print 
-print Jv_varies_velocity
-
-
-# In[72]:
-
-help(plot_flux_vs_X)
+def exp_conditionB(_mhiB,_mciB,_thiB,_tciB,_airgap,Nx):
+    '''
+    For neat code when testing Banat condition.
+    Since the model is symmetric on both sides(axes of hot and cooling channels), the hot channel is 4./2 = 2mm, cooling is 4./2=2mm.
+    -------------------------------------------
+    Params
+    -------
+    _mhiB,_mciB: (L/min) The mass flow of hot/cooling water.
+    _thiB,_tciB: (C) the temperature of inlet water
+    _airgap: (m) The distance of airgap.
+    
+    Generates
+    ------
+    Test instance of counter current.
+    '''
+    length_of_model = 1. # m
+    width_of_model = 1. # m
+    height_of_hotchannel = 4e-3/2 #(m) The height of hot channel
+    height_of_coolingchannel = 3e-3/2 # (m) The height of cooling channel
+    test_nomembrane = AG_D(_L=length_of_model,_W=width_of_model,_hfc=height_of_hotchannel,_hcc=height_of_coolingchannel,                           _delta_a=_airgap,_delta_c=0.1e-3,_Kw=0.4*3.6,                        _mhi=_mhiB*60,_mci=_mciB*60,_thi=_thiB,_tci=_tciB,_shi=42.,_sc=42.);
+    test_nomembrane.get_mesh_setup(Nx);
+    test_nomembrane.get_counter_current(Nx);
+    return test_nomembrane
 
 
-# In[73]:
+# In[29]:
 
-plot_flux_vs_X('J v vs. V_hot_inlet, when V_cooling=0.1m/s,airgap=4e-3m,len=1m','Flux (kg/m2/hr)','Velocity Hot Inlet (m/s)',              velocity_Nvalues,Jv_varies_velocity,'no')
-
-
-# In[77]:
-
-# Comparasion on length of the model
-length_Nvalues = np.array([.1,.2,.5,1.,2.]) # m
-Jv_varies_length = np.zeros(len(length_Nvalues))
-for test_i,length_of_model in enumerate(length_Nvalues):
-    print "The length of the model is: %.2f m" %length_of_model
-    Num_grid = int(length_of_model/0.05)
-    compare_length = exp_condition(_vhi=.2,_vci=.1,_airgap=4e-3,_length=length_of_model,Nx=Num_grid)
-    Jv_varies_length[test_i] = compare_length.Jv_flux_average #Jv (average along membrane) for each instance
-    print
-    print
-print Jv_varies_length
+def compute_mass_resistance(_instance):
+    
+    T_test_list = np.array((_instance.Tha,_instance.Tf,_instance.Tfp,_instance.Tpc,_instance.Tcb))
+    #R_heat_list = resistance_heat_transfer(T_test_list[:-1],T_test_list[1:],_instance.Tha,_instance.Tcb,_instance.Q_heattransfer_along)
+    #print R_heat_list[1][1] # A 3D numpy array, contains heat resistance:af,fp,pw,wb, the former is R, the latter is relatives[1].
+    R_mass_list = resistance_mass_transfer(T_test_list[:-1],T_test_list[1:],_instance.Tha,_instance.Tcb,_instance.Jv_flux_condensed_water_along)
+    #print R_mass_list # A 3D numpy array, contains mass resistance:af[0],fp[1],pw[2],wb[3], the former[0] is R, the latter is relatives.
+    #sum(R_heat_list[1])
+    return R_mass_list
 
 
-# In[78]:
+# In[30]:
 
-plot_flux_vs_X('J v vs. Length, when V_hot=.2m/s,V_cooling=0.1m/s,airgap=4e-3m','Flux (kg/m2/hr)','Length of model (m)',              length_Nvalues,Jv_varies_length,'no')
-
-
-# In[67]:
-
-# Comparasion on airgap of the model
-airgap_Nvalues = np.array([2.05e-3,2.5e-3,3e-3,3.5e-3,4e-3]) # m
-Jv_varies_airgap = np.zeros(len(airgap_Nvalues))
-for test_i,airgap_of_model in enumerate(airgap_Nvalues):
-    print "The airgap of the model is: %.5f m" %airgap_of_model
-    compare_airgap = exp_condition(_vhi=.2,_vci=.1,_airgap=airgap_of_model,_length=1.,Nx=20)
-    Jv_varies_airgap[test_i] = compare_airgap.Jv_flux_average #Jv (average along membrane) for each instance
-    print
-    print
-print Jv_varies_airgap
-
-
-# In[68]:
-
-plot_flux_vs_X('J v vs.Airgap, when V_hot=.2m/s,V_cooling=0.1m/s,len=1m','Flux (kg/m2/hr)','Airgap of model (m)',              airgap_Nvalues,Jv_varies_airgap,'no')
+def compute_heat_resistance(_instance):
+    '''
+    use func. resistance_heat_transfer to compute heat resistance along membrane.
+    ------
+    Returns
+    -------
+    Two 3D numpy array, contains heat resistance:af,fp,pw,wb, the former[0] is R, the latter[1] is relatives.
+    The order of Rs is: Raf(air gap),Rfp(falling liquid water),Rpw(the cooling plate),Rwb(1/H, fluid heat transfer resistance in channel).
+    '''
+    T_test_list = np.array((_instance.Tha,_instance.Tf,_instance.Tfp,_instance.Tpc,_instance.Tcb))
+    R_heat_list = resistance_heat_transfer(T_test_list[:-1],T_test_list[1:],_instance.Tha,_instance.Tcb,_instance.Q_heattransfer_along)
+    #print R_heat_list[1][1] # A 3D numpy array, contains heat resistance:af,fp,pw,wb, the former is R, the latter is relatives[1].
+    #R_mass_list = resistance_mass_transfer(T_test_list[:-1],T_test_list[1:],_instance.Tha,_instance.Tcb,_instance.Jv_flux_condensed_water_along)
+    #print R_mass_list # A 3D numpy array, contains mass resistance:af[0],fp[1],pw[2],wb[3], the former[0] is R, the latter is relatives.
+    #sum(R_heat_list[1])
+    return R_heat_list
 
 
-# In[60]:
-
-test_v = exp_condition(_vhi=.25,_vci=.25,_airgap=9e-3,_length=10.,Nx=20)
-
-
-# In[32]:
+# In[31]:
 
 def post_checking(check_instance):
     print "mh: %r" %(check_instance.mh)
@@ -977,61 +1055,464 @@ def post_checking(check_instance):
     print "Jv along the length: %r (kg/(m2 hr))" %check_instance.Jv_flux_condensed_water_along
     print "Q_heat transfer along the length: %r (kJ/m2/hr)" %check_instance.Q_heattransfer_along
     print "delta_f along the length: %r (m)" %check_instance.delta_f_condensed_water_along
-post_checking(test_v)
 
 
-# For no-membrane test.
+# In[32]:
 
-# In[61]:
+def computeGOR(_instance):
+    '''
+    This func is for computing GOR. GOR = Jv*Hg/Qin = Jv/Qsteam
+    --------
+    Params
+    -----
+    _instance
+    Returns
+    --------
+    GOR: demensionless number
+    '''
+    hg = CalculateEnthalpy(0.5*(_instance.Tha + _instance.Tf)) # the enthalpy of flux water vapor in the air gap.
+    Q_latent = hg * _instance.Jv_flux_condensed_water_along # kJ/kg *kg/m2/hr
+    Q_latent_integrate = ((Q_latent[0]+Q_latent[-1])*0.5*_instance.dx + sum(Q_latent[1:-1])*_instance.dx)*_instance.width_effective
+    Q_input = Cp_hot*_instance.mass_hot_inlet*(_instance.temperature_hot_inlet - _instance.Tcb[0]) # kJ/kg/K*kg/hr*K = kJ/hr
+    return Q_latent_integrate/Q_input
 
-plot_temperature("Test1","Thb","Tha","Tf","Tcb",test_v.x,                    test_v.Thb,test_v.Tha,test_v.Tf,test_v.Tcb,[10,85])
+
+# In[33]:
+
+def compute_thermal_efficiency(_instance):
+    '''
+    This function calculates thermal efficiency for the model.
+    ---------
+    Params
+    ------
+    _instance: the instance of AG_D, from the instance getting Tairgap and Q.
+    Returns
+    -------
+    thermal efficiency: Q_latent/Q_total
+    '''
+    hg = CalculateEnthalpy(0.5*(_instance.Thb + _instance.Tf)) # the enthalpy(kJ/kg) of flux water vapor in the air gap.
+    hg = CalculateEnthalpy(_instance.Thb) # kJ/kg needs to substract the enthalpy of liquid water.
+    Q_latent = hg * _instance.Jv_flux_condensed_water_along
+    Q_total  = _instance.Q_heattransfer_along
+    return Q_latent/Q_total   
 
 
-# In[45]:
+# # 料液入口温度的影响
 
-plot_along_membrane(plot_title="Test on Jv",plot_ylabel="Jv_along(kg/m2 hr)",x_values=test_v.x,                    y_values=test_v.Jv_flux_condensed_water_along ,y_limits="no")
+# ## Temperature of feeding water effects
+
+# In[51]:
+
+def make_comparasion_params(_compare_list_values,mass_flow,compare_label):
+    '''
+    This func. is for operating parameters comparasion.
+    Cautions! Each time checking mhi,mci,thi,tci,airgap. 
+    -----------------
+    Params
+    ------
+    _compare_list: the list of values
+    mass_flow: (kg/min) mass inlet
+    compare_label: a string the name of the value
+    Returns
+    -------
+    
+    '''
+    Jv_varies_ave = np.zeros(len(_compare_list_values))
+    Jv_varies = np.empty_like(Jv_varies_ave,dtype=np.ndarray)
+    EE_varies = np.empty_like(Jv_varies_ave,dtype=np.ndarray)
+    EE_varies_ave = np.zeros(len(_compare_list_values))
+    GOR_varies = np.zeros(len(_compare_list_values))
+    R_heat_varies = np.zeros((4,len(_compare_list_values)))
+    for test_i,compare_value in enumerate(_compare_list_values):
+        print "The %s is: %.3f" %(compare_label,compare_value)
+        compare_instance = exp_conditionB(_mhiB=mass_flow, _mciB=mass_flow, _thiB=compare_value, _tciB=20, _airgap=3.5e-3, Nx=20)
+        #Num_grid = int(compare_value/0.05)
+        #compare_instance = exp_conditionX(_vhi=.075,_vci=.075,_airgap=4e-3,_length=compare_value,Nx=Num_grid)
+        Jv_varies_ave[test_i] = compare_instance.Jv_flux_average #Jv (average along membrane) for each instance
+        Jv_varies[test_i] = compare_instance.Jv_flux_condensed_water_along # Jv along the membrane
+        EE_varies[test_i] = compute_thermal_efficiency(compare_instance)
+        #EE_varies_ave[test_i] = EE_varies
+        GOR_varies[test_i] = computeGOR(compare_instance)
+        R_heat_temp = compute_heat_resistance(compare_instance)
+        R_heat_varies[0,test_i] = R_heat_temp[0][0][-1]
+        R_heat_varies[1,test_i] = R_heat_temp[0][1][-1]
+        R_heat_varies[2,test_i] = R_heat_temp[0][2][-1]
+        R_heat_varies[3,test_i] = R_heat_temp[0][3][-1]
+        print
+        print 
+    print Jv_varies_ave
+    print R_heat_varies
+    #print EE_varies
+    print "Attention! Each time, check: velocity_in, air_gap, length of the model, Nx!"
+    print GOR_varies
+    return Jv_varies_ave,R_heat_varies,EE_varies,GOR_varies
+
+
+# Comparasion on T_hot
+#T_hot_Nvalues = np.array([50,60,70,80]) # m/s
+#Jv_varies_Thot_ave,R_heat_varies_Thot,EE_varies_Thot,GOR_varies_Thot = make_comparasion_params(T_hot_Nvalues,mass_in,'Temperature inlet(C)')
+
+
+# In[52]:
+
+def multi_mass_Jv_T(mass_list,T_hot_list):
+    '''
+    '''
+    Jv_mass_T = np.zeros((len(mass_list),len(T_hot_list)))
+    for test_i,mass in enumerate(mass_list):
+        print 
+        print 
+        print "The mass flow is: %.5f LPM" %mass
+        Jv_mass_T[test_i],R_mass,TE_mass,GOR_mass = make_comparasion_params(T_hot_list,mass,'Temperature inlet(C)')
+    print Jv_mass_T
+    return Jv_mass_T
+mass_list_values = np.linspace(2.5,12,5)
+T_hot_Nvalues = np.array([50,60,70,80]) # m/s
+Jv_mass_Tin = multi_mass_Jv_T(mass_list_values,T_hot_Nvalues)
+
+
+# In[53]:
+
+mass_list_labels = ['2.5L/min','4.9L/min','7.25L/min','9.63L/min','12L/min']
+plot_flux_vs_X('mass T Flux','Flux(kg/m/hr)',mass_list_labels,'Temperature feeding inlet(C)',T_hot_Nvalues,Jv_mass_Tin,' x_limits',' y_limits')
+
+
+# ## Temperature of ooling water effects
+
+# In[56]:
+
+def make_comparasion_params(_compare_list_values,mass_flow,compare_label):
+    '''
+    This func. is for operating parameters comparasion.
+    Cautions! Each time checking mhi,mci,thi,tci,airgap. 
+    -----------------
+    Params
+    ------
+    _compare_list: the list of values
+    mass_flow: (kg/min) mass inlet
+    compare_label: a string the name of the value
+    Returns
+    -------
+    
+    '''
+    Jv_varies_ave = np.zeros(len(_compare_list_values))
+    Jv_varies = np.empty_like(Jv_varies_ave,dtype=np.ndarray)
+    EE_varies = np.empty_like(Jv_varies_ave,dtype=np.ndarray)
+    EE_varies_ave = np.zeros(len(_compare_list_values))
+    GOR_varies = np.zeros(len(_compare_list_values))
+    R_heat_varies = np.zeros((4,len(_compare_list_values)))
+    for test_i,compare_value in enumerate(_compare_list_values):
+        print "The %s is: %.3f" %(compare_label,compare_value)
+        compare_instance = exp_conditionB(_mhiB=mass_flow, _mciB=mass_flow, _thiB=80, _tciB=compare_value, _airgap=3.5e-3, Nx=20)
+        #Num_grid = int(compare_value/0.05)
+        #compare_instance = exp_conditionX(_vhi=.075,_vci=.075,_airgap=4e-3,_length=compare_value,Nx=Num_grid)
+        Jv_varies_ave[test_i] = compare_instance.Jv_flux_average #Jv (average along membrane) for each instance
+        Jv_varies[test_i] = compare_instance.Jv_flux_condensed_water_along # Jv along the membrane
+        EE_varies[test_i] = compute_thermal_efficiency(compare_instance)
+        #EE_varies_ave[test_i] = EE_varies
+        GOR_varies[test_i] = computeGOR(compare_instance)
+        R_heat_temp = compute_heat_resistance(compare_instance)
+        R_heat_varies[0,test_i] = R_heat_temp[0][0][-1]
+        R_heat_varies[1,test_i] = R_heat_temp[0][1][-1]
+        R_heat_varies[2,test_i] = R_heat_temp[0][2][-1]
+        R_heat_varies[3,test_i] = R_heat_temp[0][3][-1]
+        print
+        print 
+    print Jv_varies_ave
+    print R_heat_varies
+    #print EE_varies
+    print "Attention! Each time, check: velocity_in, air_gap, length of the model, Nx!"
+    print GOR_varies
+    return Jv_varies_ave
+def multi_mass_Jv_T(mass_list,T_hot_list):
+    '''
+    '''
+    Jv_mass_T = np.zeros((len(mass_list),len(T_hot_list)))
+    for test_i,mass in enumerate(mass_list):
+        print 
+        print 
+        print "The mass flow is: %.5f LPM" %mass
+        Jv_mass_T[test_i] = make_comparasion_params(T_hot_list,mass,'Temperature inlet(C)')
+    print Jv_mass_T
+    return Jv_mass_T
+mass_list_values = np.linspace(5,15,5)
+T_cold_Nvalues = np.array([20,30,40,50]) # m/s
+Jv_mass_Tin = multi_mass_Jv_T(mass_list_values,T_cold_Nvalues)
+
+
+# In[57]:
+
+mass_list_labels = ['5.0L/min','7.5L/min','10.0L/min','12.5L/min','15.0L/min']
+plot_flux_vs_X('mass T Flux','Flux(kg/m/hr)',mass_list_labels,'Temperature cooling inlet(C)',T_cold_Nvalues,Jv_mass_Tin,' ','')
+
+
+# In[90]:
+
+np.linspace(2.5,12,5)
+
+
+# In[89]:
+
+help(plot_flux_vs_X)
+
+
+# In[50]:
+
+plot_flux_vs_X('J v vs. Temperature_hot, when Qh=5.5L/M,airgap=3.5e-3m,Tc=20C','Flux (kg/m2/hr)','','Temperature Hot Inlet (C)',              T_hot_Nvalues,Jv_varies_Thot_ave,'no','')
+
+
+# In[42]:
+
+plot_flux_vs_X('GOR vs. T_cooling, when mass_hot=80LPM,mass_cooling=80LPM,len=1m,airgap=4mm','GOR','','feeding Temperature (C)',              T_hot_Nvalues,GOR_varies_Thot,'no','')
+
+
+# In[44]:
+
+plot_flux_vs_X('Evaporation Efficiency vs. Tin, when mass_hot=80LPM,mass_cooling=80LPM,len=1m,airgap=4mm','E E','','feeding Temperature (C)',              T_hot_Nvalues,EE_varies_Thot,'no','')
+
+
+# # 料液入口速度影响
+
+# In[78]:
+
+# Comparasion on velocity
+velocity_Nvalues = np.array([.025,.05,.075,0.1]) # m/s
+Jv_varies_velocity_ave = np.zeros(len(velocity_Nvalues))
+Jv_varies_velocity = np.empty_like(Jv_varies_velocity_ave,dtype=np.ndarray)
+GOR_varies_velocity = np.zeros(len(velocity_Nvalues))
+R_heat_r_velocity = np.zeros((4,len(velocity_Nvalues)))
+for test_i,velocity_inlet in enumerate(velocity_Nvalues):
+    print "The inlet velocity is: %.3f m/s" %velocity_inlet
+    compare_velocity = exp_conditionX(_vhi=velocity_inlet,_vci=velocity_inlet,_airgap=4e-3,_length=1.,Nx=20)
+    Jv_varies_velocity_ave[test_i] = compare_velocity.Jv_flux_average #Jv (average along membrane) for each instance
+    Jv_varies_velocity[test_i] = compare_velocity.Jv_flux_condensed_water_along # Jv along the membrane
+    GOR_varies_velocity[test_i] = computeGOR(compare_velocity)
+    R_heat_velocity_temp = compute_heat_resistance(compare_velocity)
+    R_heat_r_velocity[0,test_i] = R_heat_velocity_temp[0][0][-1]
+    R_heat_r_velocity[1,test_i] = R_heat_velocity_temp[0][1][-1]
+    R_heat_r_velocity[2,test_i] = R_heat_velocity_temp[0][2][-1]
+    R_heat_r_velocity[3,test_i] = R_heat_velocity_temp[0][3][-1]
+    print
+    print 
+print Jv_varies_velocity_ave
+print R_heat_r_velocity
+print GOR_varies_velocity
+# pay attention: 0.5m/s Re=1500<2100 laminar flow.
+
+
+# In[64]:
+
+R_labels = ["Raf","Rfp","Rpw","Rwb"]
+plot_flux_vs_X('R heat vs. V_inlet, when airgap=4e-3m,len=1m','R (kJ-1 m2 K hr)',R_labels,'Velocity Hot Inlet (m/s)',              velocity_Nvalues,R_heat_r_velocity,[0.025,.2],[0,.002])
+
+
+# In[82]:
+
+plot_flux_vs_X('J v vs. V_hot_inlet, when V_cooling=0.05m/s,airgap=4e-3m,len=1m','Flux (kg/m2/hr)','','Velocity Hot Inlet (m/s)',              velocity_Nvalues,Jv_varies_velocity_ave,'no','')
+
+
+# In[88]:
+
+plot_flux_vs_X('GOR vs. Velocity inlet, when airgap=4e-3m,len=1m','GOR','','Velocity Hot Inlet (m/s)',              velocity_Nvalues,GOR_varies_velocity,'no','')
+
+
+# In[80]:
+
+V_labels = ["0.025m/s","0.050m/s","0.075m/s","0.100m/s"]
+plot_flux_vs_X('J v vs. V_inlet, when airgap=4e-3m,len=1m,Thot=80C,Tc=20C','Flux (kg/m/hr)',V_labels,'x along membrane(m)',              compare_velocity.x,Jv_varies_velocity,'[0.025,.2]','[0,.002]')
+
+
+# # 模型长度影响
+
+# In[35]:
+
+# Comparasion on length of the model
+length_Nvalues = np.array([.1,.2,.5,1.,2.]) # m
+Jv_varies_length = np.zeros(len(length_Nvalues))
+R_heat_r_length = np.zeros((4,len(length_Nvalues)))
+for test_i,length_of_model in enumerate(length_Nvalues):
+    print "The length of the model is: %.2f m" %length_of_model
+    Num_grid = int(length_of_model/0.05)
+    compare_length = exp_conditionX(_vhi=.075,_vci=.075,_airgap=4e-3,_length=length_of_model,Nx=Num_grid)
+    Jv_varies_length[test_i] = compare_length.Jv_flux_average #Jv (average along membrane) for each instance
+    R_heat_temp = compute_heat_resistance(compare_length)
+    R_heat_r_length[0,test_i] = R_heat_temp[0][0][-1]
+    R_heat_r_length[1,test_i] = R_heat_temp[0][1][-1]
+    R_heat_r_length[2,test_i] = R_heat_temp[0][2][-1]
+    R_heat_r_length[3,test_i] = R_heat_temp[0][3][-1]
+    print
+    print
+print Jv_varies_length
+print R_heat_r_length
+
+
+# In[58]:
+
+def make_comparasion_params(_compare_list_values,compare_label):
+    '''
+    This func. is for operating parameters comparasion.
+    Cautions! Each time checking mhi,mci,thi,tci,airgap. 
+    -----------------
+    Params
+    ------
+    _compare_list: the list of values
+    compare_label: a string the name of the value
+    Returns
+    -------
+    
+    '''
+    Jv_varies_ave = np.zeros(len(_compare_list_values))
+    Jv_varies = np.empty_like(Jv_varies_ave,dtype=np.ndarray)
+    EE_varies = np.empty_like(Jv_varies_ave,dtype=np.ndarray)
+    EE_varies_ave = np.zeros(len(_compare_list_values))
+    GOR_varies = np.zeros(len(_compare_list_values))
+    R_heat_varies = np.zeros((4,len(_compare_list_values)))
+    T_Cout_len = np.zeros(len(_compare_list_values))
+    T_out_len = np.zeros(len(_compare_list_values))
+    for test_i,compare_value in enumerate(_compare_list_values):
+        print "The %s is: %.3f" %(compare_label,compare_value)
+        #compare_instance = exp_conditionB(_mhiB=5.5, _mciB=5.5, _thiB=compare_value, _tciB=20, _airgap=3.5e-3, Nx=20)
+        Num_grid = int(compare_value/0.05)
+        compare_instance = exp_conditionX(_vhi=.075,_vci=.075,_airgap=4e-3,_length=compare_value,Nx=Num_grid)
+        Jv_varies_ave[test_i] = compare_instance.Jv_flux_average #Jv (average along membrane) for each instance
+        Jv_varies[test_i] = compare_instance.Jv_flux_condensed_water_along # Jv along the membrane
+        EE_varies[test_i] = compute_thermal_efficiency(compare_instance)
+        #EE_varies_ave[test_i] = EE_varies
+        GOR_varies[test_i] = computeGOR(compare_instance)
+        T_out_len[test_i] = compare_instance.Thb[-1]
+        T_Cout_len[test_i] = compare_instance.Tcb[0]
+        R_heat_temp = compute_heat_resistance(compare_instance)
+        R_heat_varies[0,test_i] = R_heat_temp[0][0][-1]
+        R_heat_varies[1,test_i] = R_heat_temp[0][1][-1]
+        R_heat_varies[2,test_i] = R_heat_temp[0][2][-1]
+        R_heat_varies[3,test_i] = R_heat_temp[0][3][-1]
+        print
+        print 
+    print Jv_varies_ave
+    print R_heat_varies
+    #print EE_varies
+    print "Attention! Each time, check: velocity_in, air_gap, length of the model, Nx!"
+    print GOR_varies
+    return Jv_varies_ave,R_heat_varies,EE_varies,GOR_varies,T_out_len,T_Cout_len
+
+# Comparasion on length of the model.
+length_Nvalues = np.array([0.2,0.5,1.,2.]) # m
+Jv_varies_len,R_heat_varies_len,EE_varies_len,GOR_varies_len,T_Hout,T_Cout = make_comparasion_params(length_Nvalues,                                                                                                                      'Length (m)')
 
 
 # In[46]:
 
-plot_along_membrane(plot_title="Test on delta_f",plot_ylabel="deltaf_along(m)",x_values=test_v.x,                    y_values=test_v.delta_f_condensed_water_along ,y_limits=[0.,1e-4])
+R_labels = ["Ra","Rfp","Rp","Rc"]
+plot_flux_vs_X('R_relative vs. length, when V_feeding=0.075m/s,V_cooling=0.075m/s,airgap =4mm','R heat',               R_labels,'length (m)',length_Nvalues,R_heat_varies_len,'no','')
+
+
+# In[49]:
+
+plot_flux_vs_X('J v vs. Length, when V_hot=.075m/s,V_cooling=0.075m/s,airgap=4e-3m','Flux (kg/m2/hr)','','Length of model (m)',              length_Nvalues,Jv_varies_len,'no','')
+
+
+# In[62]:
+
+plot_flux_vs_X('Feeding Temperature outlet vs. Length, when V_hot=.075m/s,V_cooling=0.075m/s,airgap=4e-3m','Feeding out Temperature (C)',               '','Length of model (m)',length_Nvalues,T_Hout,'no','')
+
+
+# In[61]:
+
+plot_flux_vs_X('Feeding Temperature outlet vs. Length, when V_hot=.075m/s,V_cooling=0.075m/s,airgap=4e-3m','Cooling out Temperature (C)',               '','Length of model (m)',length_Nvalues,T_Cout,'no','')
 
 
 # In[47]:
 
-plot_along_membrane(plot_title="Test on Q",plot_ylabel="Q(kJ/m2 hr)",x_values=test_v.x,                    y_values=test_v.Q_heattransfer_along ,y_limits="no")
+plot_flux_vs_X('GOR vs. Length, when V_hot=.075m/s,V_cooling=0.075m/s,airgap=4e-3m','GOR','','Length of model (m)',              length_Nvalues,GOR_varies_len,'no','')
 
+
+# # 空气隙宽度影响
+
+# In[102]:
+
+# Comparasion on airgap of the model
+airgap_Nvalues = np.array([2.0e-3,2.5e-3,3e-3,3.5e-3,4e-3]) # m
+Jv_varies_airgap_ave = np.zeros(len(airgap_Nvalues))
+Jv_varies_airgap = np.empty_like(Jv_varies_airgap_ave,dtype=np.ndarray)
+#Q_varies_airgap = np.zeros(len(airgap_Nvalues))
+R_heat_r_airgap = np.zeros((4,len(airgap_Nvalues)))
+GOR_varies_airgap = np.zeros(len(airgap_Nvalues))
+for test_i,airgap_of_model in enumerate(airgap_Nvalues):
+    print "The airgap of the model is: %.5f m" %airgap_of_model
+    compare_airgap = exp_conditionX(_vhi=.075,_vci=.075,_airgap=airgap_of_model,_length=1.,Nx=20)
+    Jv_varies_airgap_ave[test_i] = compare_airgap.Jv_flux_average #Jv (average along membrane) for each instance
+    Jv_varies_airgap[test_i] = compare_airgap.Jv_flux_condensed_water_along # Jv along the memb
+    R_heat_temp = compute_heat_resistance(compare_airgap)
+    R_heat_r_airgap[0,test_i] = R_heat_temp[0][0][-1]
+    R_heat_r_airgap[1,test_i] = R_heat_temp[0][1][-1]
+    R_heat_r_airgap[2,test_i] = R_heat_temp[0][2][-1]
+    R_heat_r_airgap[3,test_i] = R_heat_temp[0][3][-1]
+    GOR_varies_airgap[test_i] = computeGOR(compare_airgap)
+    print
+    print
+print Jv_varies_airgap_ave
+print R_heat_r_airgap
+
+
+# In[106]:
+
+airgap_labels = ["2.0mm","2.5mm","3.0mm","3.5mm","4.0mm"]
+plot_flux_vs_X('J v vs. Airgap distance, when Velocity_in=0.075m/s,len=1m,Thot=80C,Tc=20C','Flux (kg/m/hr)',airgap_labels,'x along membrane(m)',              compare_airgap.x,Jv_varies_airgap,'[0.025,.2]','[0,.002]')
+
+
+# In[111]:
+
+R_labels = ["Ra","Rf","Rp","Rc"]
+plot_flux_vs_X('Heat resistance vs. air gap distance, when V_feeding=0.075m/s,len=1m,Th=80C,Tc=20C','R heat (kJ-1 m2 K hr)',               R_labels,'air gap distance (m)',airgap_Nvalues,R_heat_r_airgap,'no','')
+
+
+# In[109]:
+
+plot_flux_vs_X('GOR vs. air gap distance, when velocity_in=0.075m/s,len=1m,Th=80C,Tc=20C','GOR','','air gap distance (m)',              airgap_Nvalues,GOR_varies_airgap,'[0.002,0.004]','[0.25,0.6]')
+
+
+# In[110]:
+
+plot_flux_vs_X('J v vs. Airgap, when Velocity_in=.075m/s,len=1m,Th=80C,Tc=20C','Flux (kg/m2/hr)','','Air gap distance (m)',              airgap_Nvalues,Jv_varies_airgap_ave,'[0.002,0.004]','[15,23]')
+
+
+# ## For single example test
 
 # In[36]:
 
-help(plot_temperature)
+# for using PE as cooling plate.
+test_v = exp_conditionX(_vhi=.1,_vci=.1,_airgap=2e-3,_length=1.,Nx=20)
 
 
 # In[ ]:
 
-a = [1,2]
-def test_func_variables(a):
-    if type(a) == str:
-        print "a is a string."
-    elif type(a)==int:
-        print "a + 1 = %r " %(a+1)
-    elif type(a) == list:
-        print a[0],a[1]
-    print "a is : %r." %a
+ax = pyplot.figure()
+ax.plot()
+
+
+# In[67]:
+
+T_list_labels = ["Thb","Tha","Tf","Tfp","Tpc","Tcb"]
+T_list_values = [test_v.Thb,test_v.Tha,test_v.Tf,test_v.Tfp,test_v.Tpc,test_v.Tcb]
+plot_muliti_along("Temperature along Model",T_list_labels,test_v.x,                    T_list_values,'Temperature',[10,85])
+
+
+# In[68]:
+
+plot_along_membrane(plot_title="Test on Jv",plot_ylabel="Jv_along(kg/m2 hr)",x_values=test_v.x,                    y_values=test_v.Jv_flux_condensed_water_along ,y_limits="no")
+
+
+# In[69]:
+
+plot_along_membrane(plot_title="Test on delta_f",plot_ylabel="deltaf_along(m)",x_values=test_v.x,                    y_values=test_v.delta_f_condensed_water_along ,y_limits=[0.,1e-4])
+
+
+# In[70]:
+
+plot_along_membrane(plot_title="Test on Q",plot_ylabel="Q(kJ/m2 hr)",x_values=test_v.x,                    y_values=test_v.Q_heattransfer_along ,y_limits="no")
 
 
 # In[ ]:
 
-test_func_variables([1,2])
 
-
-# In[ ]:
-
-b =1
-type(b)
-
-
-# In[ ]:
-
-# pyplot to show Jv varies attributed to T(inlet)
 
