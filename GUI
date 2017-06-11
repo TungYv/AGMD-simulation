@@ -27,7 +27,8 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.boost_button_2.clicked.connect(self.boost_AGD_multiple)
         self.plot_button_2.clicked.connect(self.canvas_plot2)
         self.export_button_2.clicked.connect(self.text_export_multi)
-        
+        # self.clear_button_2.clicked.connect(.__init__)
+        self.exit_button_2.clicked.connect(self.close)
     
     def exhibit_graphic(self, loaded_image):
         '''
@@ -98,11 +99,6 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         '''
         Plot the results using functions in module 'myAGD'.
         '''
-        # for dict_value in self.dict_multi_values.values():
-        # get dict_multi_values's all values, and put them into a list.
-            # if type(dict_value) == np.ndarray:
-                # compare_values = dict_value # cannot get the value or the key of the dictionary.
-
         R_labels = ["Ra","Rf","Rp ","Rc"]
         myAGD.plot_R_vs_X(self.figure_R,'Heat resistance','R (kJ-1 m2 K s)',R_labels,self.compare_label,\
                             self.compare_values,self.R_heat_varies,'','')
@@ -122,20 +118,29 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         _Jv,_Q,_delta_f: they are in the _instance.
         '''
         Font  = {'family':'Tahoma', 'size':12}
-        # self.figure2.clf()
+        # pyplot.close("all")
+        # self.figure2.clf() # the host axis is gone.
+        # self.myframe_Jv.clear()
+        # self.layout2.clear()
+        # self.createLayout()
+        # self.figure2,self.fig2_host = pyplot.subplots()
         # create parasite axes
         host = self.fig2_host
         Q_part = host.twinx()
         delta_f_part = host.twinx()
-
+        # host.clear() # no use..
+        # Q_part.clear() # no use
+        # delta_f_part.clear() # no use
+        
+        print '\n'+"Start plotting Jv-Q-delta_f vs. x(m)."
         
         # offset the parasite axes
         delta_f_part.spines["right"].set_position(("axes",1.2))
         
         # plot
         l1, = host.plot(self._instance.x,_Jv,color='b',label='Flux')
-        l2, = Q_part.plot(self._instance.x,_Q/1e3,color='r',label='Heat transfer')
-        l3, = delta_f_part.plot(self._instance.x,_delta_f*1e3,color='g',label='$\Delta$ condensate') 
+        l2, = Q_part.plot(self._instance.x,_Q/1e3,color='r',ls=':',label='Heat transfer')
+        l3, = delta_f_part.plot(self._instance.x,_delta_f*1e3,color='g',ls='--',label='$\Delta$ condensate') 
         
         # set label
         host.set_title("Flux,Heat transfer and $\Delta$ condensate vs. x")
@@ -146,7 +151,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         
         lines = [l1,l2,l3]
         host.legend(lines,[l.get_label() for l in lines],prop={'size':10}) # get from the web.
-    
+        
     def plot_parasite_axis2(self,_Jv,_Q,_delta_f):
         '''
         Use pyplot.subplots() as a self.figure, get host, use host to generate 2 parasite axes,\
@@ -162,13 +167,15 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         Q_part = host.twinx()
         delta_f_part = host.twinx()
         
+        print '\n'+"Start plotting Jv-GOR-TE vs. "+self.compare_label
+        
         # offset the parasite axes
         delta_f_part.spines["right"].set_position(("axes",1.2))
         
         # plot
         l1, = host.plot(self.compare_values,_Jv,color='b',label='Flux')
-        l2, = Q_part.plot(self.compare_values,_Q,color='r',label='GOR')
-        l3, = delta_f_part.plot(self.compare_values,_delta_f,color='g',label='TE') 
+        l2, = Q_part.plot(self.compare_values,_Q,color='r',ls=':',label='GOR')
+        l3, = delta_f_part.plot(self.compare_values,_delta_f,color='g',ls='--',label='TE') 
         
         # set label
         host.set_title("Flux,GOR and TE in various conditions")
@@ -200,6 +207,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         ax.clear()
         n_arrays = len(_list_labels)
         # ax.plot()
+        print '\n'+"Start plotting Temperature vs. x."
         for i_array in range(n_arrays):
             if i_array == 2: ax.plot(x_values,_list_values[i_array], ls='-.')
             else: ax.plot(x_values,_list_values[i_array])
@@ -207,7 +215,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         ax.set_xlabel("x along the model (m)", fontdict=Font)
         ax.set_ylabel(y_label, fontdict=Font)
         if type(y_limits) == str:
-            print "No specific restrict boundary."
+            pass
         elif type(y_limits) == list:
             y_max = y_limits[1]
             y_min = y_limits[0]
@@ -215,7 +223,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         else : 
             raise NameError("MyError! y_limits input is wrong.")
         ax.grid(True)
-        ax.legend(_list_labels,bbox_to_anchor=(0.95,0.95),prop={'size':8})
+        ax.legend(_list_labels,bbox_to_anchor=(0.95,0.95),prop={'size':8}) # bbox_to_anchor(1=right,1=top)
         
     
     def text_display(self):
@@ -264,22 +272,25 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
               right in the path of this program,
               and rewrite data to a file if it already exists.
         '''
+        print '\n'+"Export the data in single-test.txt in current path."
         _F = open('single-test.txt','w')
         _F.write('This is a single-test example.'+\
                 '\n'+'The parameters are:'+'\n'+\
                 ' Length,Width,ChanlHot,ChanlCold,Air gap,Plate,K plate,Mass flow,T hot in,T cold in,Salinity'+'\n'+\
-                '{:>8}'.format(self.length_line.text())+'{:>8}'.format(self.length_line.text())+\
-                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
-                '{:>12}'.format(self.length_line.text())+'{:>9}'.format(self.length_line.text())+\
-                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
-                '{:>12}'.format(self.length_line.text())+'{:>14}'.format(self.length_line.text())+\
-                '{:>10}'.format(self.length_line.text()))
-        _F.write('\n'+'GOR'+str(self.AGD_GOR))
-        _F.write('\n'+'Thermal efficiency along the model'+str(self.AGD_TE))
-        _F.write('\n'+'flux average (kg/m/hr):'+str(self._instance.Jv_flux_average))
-        _F.write('\n'+'flux along the model (kg/m/hr):'+str(self._instance.Jv_flux_condensed_water_along))
-        _F.write('\n'+'Capacity of heat transfer (kJ/m/hr):'+str(self._instance.Q_heattransfer_along))
-        _F.write('\n'+'Thickness condensate water (m):'+str(self._instance.delta_f_condensed_water_along))
+                '{:>8}'.format(self.length_line.text())+'{:>8}'.format(self.width_line.text())+\
+                '{:>10}'.format(self.channel_hot_line.text())+'{:>10}'.format(self.channel_cold_line.text())+\
+                '{:>13}'.format(self.airgap_line.text())+'{:>11}'.format(self.plate_line.text())+\
+                '{:>9}'.format(self.plate_line_K.text())+'{:>10}'.format(self.mass_line.text())+\
+                '{:>12}'.format(self.Thot_line.text())+'{:>12}'.format(self.Tcold_line.text())+\
+                '{:>10}'.format(self.salinity_line.text()))
+        _F.write('\n'+'The results are:')
+        if self._instance.warning_flag: _F.write('\n'+"Warning! Divergence detected! Please pay attention to the results' precision.")
+        _F.write('\n'+'GOR:'+'\n'+str(self.AGD_GOR))
+        _F.write('\n'+'Thermal efficiency along the model'+'\n'+str(self.AGD_TE))
+        _F.write('\n'+'Vapor flux average (kg/m/hr):'+'\n'+str(self._instance.Jv_flux_average))
+        _F.write('\n'+'Vapor flux along the model (kg/m/hr):'+'\n'+str(self._instance.Jv_flux_condensed_water_along))
+        _F.write('\n'+'Heat flux (kJ/m/hr):'+'\n'+str(self._instance.Q_heattransfer_along))
+        _F.write('\n'+'Thickness condensate water (m):'+'\n'+str(self._instance.delta_f_condensed_water_along))
         _F.write('\n'+'Temperature along the model:')
         _F.write('\n'+'Thb (C)'+'\n'+str(self._instance.Thb))
         _F.write('\n'+'Tha (C)'+'\n'+str(self._instance.Tha))
@@ -304,21 +315,25 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
               right in the path of this program,
               and rewrite data to a file if it already exists.
         '''
+        np.set_printoptions(precision=8)
+        print '\n'+"Export the data in multi-test.txt in current path."
         _F = open('multi-test.txt','w')
         _F.write('This is a multi-test example.'+\
                 '\n'+'The parameters are:'+'\n'+\
                 ' Length,Width,ChanlHot,ChanlCold,Air gap,Plate,K plate,Mass flow,T hot in,T cold in,Salinity'+'\n'+\
-                '{:>8}'.format(self.length_line_2.text())+'{:>8}'.format(self.length_line.text())+\
-                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
-                '{:>12}'.format(self.length_line.text())+'{:>9}'.format(self.length_line.text())+\
-                '{:>10}'.format(self.length_line.text())+'{:>10}'.format(self.length_line.text())+\
-                '{:>12}'.format(self.length_line.text())+'{:>14}'.format(self.length_line.text())+\
-                '{:>10}'.format(self.length_line.text()))
-        _F.write('\n'+'The variable is: '+self.compare_label+'  from--to--: '+str(self.compare_values))
+                '{:>8}'.format(self.length_line_2.text())+'{:>8}'.format(self.width_line_2.text())+\
+                '{:>10}'.format(self.channel_hot_line_2.text())+'{:>10}'.format(self.channel_cold_line_2.text())+\
+                '{:>12}'.format(self.airgap_line_2.text())+'{:>11}'.format(self.plate_line_2.text())+\
+                '{:>10}'.format(self.plate_line_K_2.text())+'{:>10}'.format(self.hot_v_line.text())+\
+                '{:>12}'.format(self.Thot_line_2.text())+'{:>12}'.format(self.Tcold_line_2.text())+\
+                '{:>10}'.format(self.salinity_line_2.text()))
+        _F.write('\n'+'The variable is: '+self.compare_label+',  from--to--: '+str(self.compare_values))
+        _F.write('\n'+'The results are:')
+        if sum(self.warnF): _F.write('\n'+"Warning! Divergence detected! Please pay attention to the results' precision.")
         #self.Jv_varies_ave,self.R_heat_varies,self.EE_varies_ave,self.GOR_varies
         _F.write('\n'+'GOR'+'\n'+str(self.GOR_varies))
         _F.write('\n'+'Thermal efficiency along the model'+'\n'+str(self.EE_varies_ave))
-        _F.write('\n'+'flux average (kg/m/hr):'+'\n'+str(self.Jv_varies_ave))
+        _F.write('\n'+'Vapor flux average (kg/m/hr):'+'\n'+str(self.Jv_varies_ave))
         # _F.write('\n'+'flux along the model (kg/m/hr):'+str(self._instance.Jv_flux_condensed_water_along))
         # _F.write('\n'+'Capacity of heat transfer (kJ/m/hr):'+str(self._instance.Q_heattransfer_along))
         # _F.write('\n'+'Thickness condensate water (m):'+str(self._instance.delta_f_condensed_water_along))
@@ -341,15 +356,22 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         '''
         To start myAGD module via push the button.
         '''
+        print "\n"+"\n"+"Now Boosting AGD single-test."
         input_length = float(self.length_line.text())
         input_width = float(self.width_line.text())
-        # input_airgap = float(self.airgap_line.text())/1000
-        # input_Thickp = float(self.plate_line.text())/1000
-        # input_mass = float(self.mass_line.text())*60
-        # input_Kp = float(self.plate_line_K.text())*3.6
-        # input..
+        input_hfc = float(self.channel_hot_line.text())/1000
+        input_hcc = float(self.channel_cold_line.text())/1000
+        input_airgap = float(self.airgap_line.text())/1000
+        input_Thickp = float(self.plate_line.text())/1000
+        input_mass = float(self.mass_line.text())*60
+        input_Kp = float(self.plate_line_K.text())*3.6
+        input_Thot = float(self.Thot_line.text())
+        input_Tcold = float(self.Tcold_line.text())
+        input_salinity = float(self.salinity_line.text())
         input_Nx = int(self.Nx_spinBox.value())
-        self._instance = myAGD.AG_D(_L=input_length,_W=input_width,_hfc=2e-3,_hcc=2e-3,_delta_a=4e-3,_delta_c=0.1e-3,_Kw=0.4*3.6,_mhi=5.5*60,_mci=5.5*60,_thi=80,_tci=20,_shi=42.,_sc=42.)
+        self._instance = myAGD.AG_D(_L=input_length,_W=input_width,_hfc=input_hfc,_hcc=input_hcc,\
+                        _delta_a=input_airgap,_delta_c=input_Thickp,_Kw=input_Kp,_mhi=input_mass,\
+                        _mci=input_mass,_thi=input_Thot,_tci=input_Tcold,_shi=input_salinity,_sc=input_salinity)
         self._instance.get_mesh_setup(input_Nx)
         self._instance.get_counter_current(input_Nx)
         self._instance.get_velocity()
@@ -365,6 +387,7 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         '''
         To start myAGD and compute several instances.
         '''
+        print "\n"+"\n"+"Now Boosting AGD multi-test."
         input_dict = {} # a dictionary to contain values.
         steps_value = int(self.step_spinBox.value())
         #[length,air-gap,hot_velocity,T_hot,T_cold] maybe a sub-list.
@@ -387,12 +410,12 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
             input_dict["hotV"] = np.linspace(input_hotv_start,input_hotv_end,steps_value)
         except:
             input_dict['hotV'] = float(self.hot_v_line.text())
-        try:
-            input_coldv_end = float(self.cold_v_line_end.text())# (m/s)
-            input_coldv_start = float(self.cold_v_line.text())
-            input_dict["coldV"] = np.linspace(input_coldv_start,input_coldv_end,steps_value)
-        except:
-            input_dict['coldV'] = float(self.cold_v_line.text())
+        # try:
+            # input_coldv_end = float(self.cold_v_line_end.text())# (m/s)
+            # input_coldv_start = float(self.cold_v_line.text())
+            # input_dict["coldV"] = np.linspace(input_coldv_start,input_coldv_end,steps_value)
+        # except:
+            # input_dict['coldV'] = float(self.cold_v_line.text())
         try:
             input_Thot_end = float(self.Thot_line_end.text())
             input_Thot_start = float(self.Thot_line_2.text())
@@ -420,13 +443,21 @@ class MyApp(QtGui.QMainWindow, Ui_MainWindow):
         self.Jv_varies_ave,self.R_heat_varies,self.EE_varies_ave,self.GOR_varies,self.warnF,\
                         self.compare_values,self.compare_label=myAGD.make_comparasion_params(input_dict,steps_value)
         self.text_display2()
-        self.dict_multi_values = input_dict
+        self.dictionary_multi = input_dict
+        
+    def clear_dict(self):
+        '''This is for clear dictionary in multi-test.
+        Since if I input multi-test module twice with the same parameter but different values,
+        it cannot run the program. But if I try other parameters, I will run still.
+        '''
+        # It seems I was wrong. This func. is of no use.
+        self.dictionary_multi.clear()
         
 # np.set_printoptions(precision=3)
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     window = MyApp()
-    myImage = QtGui.QPixmap('resources\Ding.JPG') #load '.jpg'
+    myImage = QtGui.QPixmap('C:\\AGD\\resources\\AGMD-process.png') #load '.jpg'
     window.exhibit_graphic(myImage)
     window.show()
     sys.exit(app.exec_())
